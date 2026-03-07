@@ -105,6 +105,24 @@ st.markdown("""
         color: #ffffff !important;
     }
     
+    /* Sidebar selectbox - white text and dropdown */
+    [data-testid="stSidebar"] [data-baseweb="select"] {
+        background: rgba(255,255,255,0.1) !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background: rgba(255,255,255,0.1) !important;
+        border-radius: 8px;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] span {
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] svg {
+        fill: #ffffff !important;
+    }
+    
     /* Custom metric cards - Dark Navy with shadow */
     .metric-card {
         background: linear-gradient(135deg, #1a2744 0%, #2d3a4a 100%);
@@ -414,40 +432,46 @@ st.markdown("""
         background: white !important;
     }
     
-    /* Input labels in main content - white */
+    /* Input labels in main content - dark for light background */
     .main .stTextInput label, .main .stNumberInput label, .main .stSelectbox label {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
-    /* Force ALL labels in main area to be white */
+    /* Force ALL labels in main area to be dark */
     .main label {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     .main .stSelectbox label p {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     .main [data-testid="stWidgetLabel"] {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     .main [data-testid="stWidgetLabel"] p {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     /* Labels inside tabs */
     .stTabs [data-baseweb="tab-panel"] label {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     .stTabs [data-baseweb="tab-panel"] [data-testid="stWidgetLabel"] p {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
-    /* Selectbox text - dark on white background */
+    /* Selectbox text - dark on white background and BOLD */
     .main [data-baseweb="select"] span {
         color: #2d3436 !important;
+        font-weight: 700 !important;
+    }
+    
+    /* All selectbox values bold everywhere */
+    [data-baseweb="select"] span {
+        font-weight: 700 !important;
     }
     
     /* Number input styling - white background */
@@ -527,15 +551,41 @@ st.markdown("""
         height: 40px !important;
     }
     
-    /* Sidebar toggle button - make visible */
+    /* Sidebar toggle button - RED for visibility */
     [data-testid="stSidebarCollapsedControl"] {
-        background: #1a2744 !important;
+        background: #e74c3c !important;
         color: white !important;
+        border-radius: 4px !important;
     }
     
     [data-testid="stSidebarCollapsedControl"] svg {
         fill: white !important;
         stroke: white !important;
+    }
+    
+    [data-testid="stSidebarCollapsedControl"]:hover {
+        background: #c0392b !important;
+    }
+    
+    /* Sidebar expand button on dark sidebar */
+    [data-testid="stSidebarNavCollapseIcon"] {
+        background: #e74c3c !important;
+        border-radius: 4px !important;
+    }
+    
+    [data-testid="stSidebarNavCollapseIcon"] svg {
+        fill: white !important;
+        stroke: white !important;
+    }
+    
+    /* Collapse button in sidebar */
+    button[kind="header"] {
+        background: #e74c3c !important;
+        color: white !important;
+    }
+    
+    button[kind="header"] svg {
+        fill: white !important;
     }
     
     /* Reduce top padding */
