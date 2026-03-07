@@ -17,6 +17,8 @@ def init_database():
     create_consumables_table()
     create_toners_table()
     create_activities_table()
+    # Add p3_it_cage column if it doesn't exist
+    add_p3_it_cage_column()
 
 
 def create_users_table():
@@ -44,6 +46,7 @@ def create_consumables_table():
         p1_it_cage INTEGER DEFAULT 0,
         hrv_backside INTEGER DEFAULT 0,
         rf_cage INTEGER DEFAULT 0,
+        p3_it_cage INTEGER DEFAULT 0,
         min_stock_level INTEGER DEFAULT 5,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
@@ -63,9 +66,31 @@ def create_toners_table():
         p1_it_cage INTEGER DEFAULT 0,
         hrv_backside INTEGER DEFAULT 0,
         rf_cage INTEGER DEFAULT 0,
+        p3_it_cage INTEGER DEFAULT 0,
         min_stock_level INTEGER DEFAULT 2,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+    conn.commit()
+    conn.close()
+
+
+def add_p3_it_cage_column():
+    """Add p3_it_cage column to existing tables if not exists"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Check if p3_it_cage exists in consumables
+    cursor.execute("PRAGMA table_info(consumables)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'p3_it_cage' not in columns:
+        cursor.execute('ALTER TABLE consumables ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
+    
+    # Check if p3_it_cage exists in toners
+    cursor.execute("PRAGMA table_info(toners)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'p3_it_cage' not in columns:
+        cursor.execute('ALTER TABLE toners ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
+    
     conn.commit()
     conn.close()
 
@@ -137,7 +162,7 @@ def verify_user_password(username, password):
 def set_consumable_stock(item_id, location, new_value):
     conn = get_connection()
     cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage'}
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
     cursor.execute(f'UPDATE consumables SET {col} = ? WHERE id = ?', (new_value, item_id))
     conn.commit()
@@ -147,7 +172,7 @@ def set_consumable_stock(item_id, location, new_value):
 def set_toner_stock(item_id, location, new_value):
     conn = get_connection()
     cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage'}
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
     cursor.execute(f'UPDATE toners SET {col} = ? WHERE id = ?', (new_value, item_id))
     conn.commit()
@@ -172,11 +197,11 @@ def get_user_by_id(user_id):
     return dict(user) if user else None
 
 
-def add_consumable(item_name, category, p1_it_cage=0, hrv_backside=0, rf_cage=0, min_stock_level=5):
+def add_consumable(item_name, category, p1_it_cage=0, hrv_backside=0, rf_cage=0, p3_it_cage=0, min_stock_level=5):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?)',
-                   (item_name, category, p1_it_cage, hrv_backside, rf_cage, min_stock_level))
+    cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                   (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
     conn.commit()
     conn.close()
 
@@ -184,7 +209,7 @@ def add_consumable(item_name, category, p1_it_cage=0, hrv_backside=0, rf_cage=0,
 def get_all_consumables():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage) as total_stock FROM consumables ORDER BY category, item_name')
+    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM consumables ORDER BY category, item_name')
     consumables = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return consumables
@@ -193,7 +218,7 @@ def get_all_consumables():
 def update_consumable_stock(item_id, location, quantity_change):
     conn = get_connection()
     cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage'}
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
     cursor.execute(f'UPDATE consumables SET {col} = {col} + ? WHERE id = ?', (quantity_change, item_id))
     conn.commit()
@@ -203,7 +228,7 @@ def update_consumable_stock(item_id, location, quantity_change):
 def get_low_stock_consumables():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage) as total_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage) <= min_stock_level')
+    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
     consumables = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return consumables
@@ -212,19 +237,19 @@ def get_low_stock_consumables():
 def get_consumable_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage, COUNT(DISTINCT category) as categories FROM consumables')
+    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage, COALESCE(SUM(p3_it_cage), 0) as p3_it_cage, COUNT(DISTINCT category) as categories FROM consumables')
     stats = dict(cursor.fetchone())
-    cursor.execute('SELECT COUNT(*) as low_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage) <= min_stock_level')
+    cursor.execute('SELECT COUNT(*) as low_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
     stats['low_stock_count'] = cursor.fetchone()['low_stock']
     conn.close()
     return stats
 
 
-def add_toner(printer_model, printer_count, toner_model, color, p1_it_cage=0, hrv_backside=0, rf_cage=0, min_stock_level=2):
+def add_toner(printer_model, printer_count, toner_model, color, p1_it_cage=0, hrv_backside=0, rf_cage=0, p3_it_cage=0, min_stock_level=2):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                   (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, min_stock_level))
+    cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                   (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
     conn.commit()
     conn.close()
 
@@ -232,7 +257,7 @@ def add_toner(printer_model, printer_count, toner_model, color, p1_it_cage=0, hr
 def get_all_toners():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage) as total_stock FROM toners ORDER BY printer_model')
+    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM toners ORDER BY printer_model')
     toners = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return toners
@@ -241,7 +266,7 @@ def get_all_toners():
 def update_toner_stock(item_id, location, quantity_change):
     conn = get_connection()
     cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage'}
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
     cursor.execute(f'UPDATE toners SET {col} = {col} + ? WHERE id = ?', (quantity_change, item_id))
     conn.commit()
@@ -251,7 +276,7 @@ def update_toner_stock(item_id, location, quantity_change):
 def get_low_stock_toners():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage) as total_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage) <= min_stock_level')
+    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
     toners = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return toners
@@ -260,9 +285,9 @@ def get_low_stock_toners():
 def get_toner_stats():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage FROM toners')
+    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage, COALESCE(SUM(p3_it_cage), 0) as p3_it_cage FROM toners')
     stats = dict(cursor.fetchone())
-    cursor.execute('SELECT COUNT(*) as low_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage) <= min_stock_level')
+    cursor.execute('SELECT COUNT(*) as low_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
     stats['low_stock_count'] = cursor.fetchone()['low_stock']
     conn.close()
     return stats
@@ -329,56 +354,56 @@ def insert_sample_data():
     cursor.execute('SELECT COUNT(*) as count FROM consumables')
     if cursor.fetchone()['count'] == 0:
         consumables = [
-            ('Walkie Talkie Adaptor', 'Adapters', 5, 0, 0, 2),
-            ('Bluetooth Scanner', 'Scanners', 6, 0, 0, 3),
-            ('DP Cable', 'Cables', 166, 0, 0, 20),
-            ('Thin Client Power Adaptor', 'Adapters', 77, 0, 0, 10),
-            ('VGA Cable', 'Cables', 31, 0, 0, 5),
-            ('Keyboard', 'Peripherals', 28, 0, 0, 5),
-            ('LAN Cable', 'Cables', 117, 0, 0, 15),
-            ('Mouse', 'Peripherals', 13, 0, 0, 5),
-            ('HDMI Cable', 'Cables', 140, 0, 0, 20),
-            ('Symbol Scanner USB Cable', 'Cables', 6, 0, 0, 3),
-            ('Printer Power Cable', 'Cables', 42, 0, 0, 5),
-            ('Thin Client Power Cable', 'Cables', 113, 0, 0, 15),
-            ('Laptop Charger', 'Power', 18, 0, 0, 5),
-            ('ZT620 & GX430 Power Adaptor', 'Adapters', 36, 0, 0, 5),
-            ('Printer USB Cable', 'Cables', 39, 0, 0, 5),
-            ('IO', 'Accessories', 44, 0, 0, 5),
-            ('Fiber Cable', 'Cables', 74, 0, 0, 10),
-            ('Console Cable', 'Cables', 27, 0, 0, 5),
-            ('Desk Phone', 'Peripherals', 1, 0, 0, 1),
-            ('Bluetooth Scanner Cable', 'Cables', 31, 0, 0, 5),
-            ('Switch 3 Pin Power Cable', 'Cables', 20, 0, 0, 5),
-            ('Bluetooth Scanner Cradle', 'Scanners', 19, 0, 0, 5),
-            ('External AP', 'Network', 2, 0, 0, 2),
-            ('Internal AP', 'Network', 6, 0, 0, 3),
-            ('Lan Adaptor', 'Adapters', 6, 0, 0, 3),
-            ('USB HUB', 'Accessories', 150, 0, 0, 20),
-            ('HDMI to DP', 'Adapters', 16, 0, 0, 5),
-            ('HDMI to VGA', 'Adapters', 3, 0, 0, 2),
-            ('DP to VGA', 'Adapters', 6, 0, 0, 3)
+            ('Walkie Talkie Adaptor', 'Adapters', 5, 0, 0, 0, 2),
+            ('Bluetooth Scanner', 'Scanners', 6, 0, 0, 0, 3),
+            ('DP Cable', 'Cables', 166, 0, 0, 0, 20),
+            ('Thin Client Power Adaptor', 'Adapters', 77, 0, 0, 0, 10),
+            ('VGA Cable', 'Cables', 31, 0, 0, 0, 5),
+            ('Keyboard', 'Peripherals', 28, 0, 0, 0, 5),
+            ('LAN Cable', 'Cables', 117, 0, 0, 0, 15),
+            ('Mouse', 'Peripherals', 13, 0, 0, 0, 5),
+            ('HDMI Cable', 'Cables', 140, 0, 0, 0, 20),
+            ('Symbol Scanner USB Cable', 'Cables', 6, 0, 0, 0, 3),
+            ('Printer Power Cable', 'Cables', 42, 0, 0, 0, 5),
+            ('Thin Client Power Cable', 'Cables', 113, 0, 0, 0, 15),
+            ('Laptop Charger', 'Power', 18, 0, 0, 0, 5),
+            ('ZT620 & GX430 Power Adaptor', 'Adapters', 36, 0, 0, 0, 5),
+            ('Printer USB Cable', 'Cables', 39, 0, 0, 0, 5),
+            ('IO', 'Accessories', 44, 0, 0, 0, 5),
+            ('Fiber Cable', 'Cables', 74, 0, 0, 0, 10),
+            ('Console Cable', 'Cables', 27, 0, 0, 0, 5),
+            ('Desk Phone', 'Peripherals', 1, 0, 0, 0, 1),
+            ('Bluetooth Scanner Cable', 'Cables', 31, 0, 0, 0, 5),
+            ('Switch 3 Pin Power Cable', 'Cables', 20, 0, 0, 0, 5),
+            ('Bluetooth Scanner Cradle', 'Scanners', 19, 0, 0, 0, 5),
+            ('External AP', 'Network', 2, 0, 0, 0, 2),
+            ('Internal AP', 'Network', 6, 0, 0, 0, 3),
+            ('Lan Adaptor', 'Adapters', 6, 0, 0, 0, 3),
+            ('USB HUB', 'Accessories', 150, 0, 0, 0, 20),
+            ('HDMI to DP', 'Adapters', 16, 0, 0, 0, 5),
+            ('HDMI to VGA', 'Adapters', 3, 0, 0, 0, 2),
+            ('DP to VGA', 'Adapters', 6, 0, 0, 0, 3)
         ]
         for item in consumables:
-            cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?)', item)
+            cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)', item)
     
     cursor.execute('SELECT COUNT(*) as count FROM toners')
     if cursor.fetchone()['count'] == 0:
         toners = [
-            ('LaserJet Pro MFP M521dn', 5, 'CE255XC', 'Black', 3, 0, 4, 2),
-            ('LaserJet M608', 6, 'CF237YC', 'Black', 0, 13, 0, 3),
-            ('LaserJet flow MFP M830', 2, 'CF325XC', 'Black', 5, 12, 0, 3),
-            ('LaserJet M605', 5, 'CF281XC', 'Black', 6, 4, 0, 2),
-            ('LaserJet MFP E82560', 1, 'W9037MC', 'Black', 7, 0, 0, 2),
-            ('LaserJet MFP M427fdw', 3, 'CF228XC', 'Black', 1, 8, 4, 2),
-            ('LaserJet 700 color MFP M775', 2, 'CE340AC - K', 'Black', 4, 4, 3, 2),
-            ('LaserJet 700 color MFP M775', 2, 'CE341AC - C', 'Cyan', 8, 7, 0, 2),
-            ('LaserJet 700 color MFP M775', 2, 'CE342AC - Y', 'Yellow', 0, 6, 3, 2),
-            ('LaserJet 700 color MFP M775', 2, 'CE343AC - M', 'Magenta', 6, 5, 4, 2),
-            ('LaserJet Enterprise M611dn', 3, 'W1470YC', 'Black', 2, 4, 4, 2)
+            ('LaserJet Pro MFP M521dn', 5, 'CE255XC', 'Black', 3, 0, 4, 0, 2),
+            ('LaserJet M608', 6, 'CF237YC', 'Black', 0, 13, 0, 0, 3),
+            ('LaserJet flow MFP M830', 2, 'CF325XC', 'Black', 5, 12, 0, 0, 3),
+            ('LaserJet M605', 5, 'CF281XC', 'Black', 6, 4, 0, 0, 2),
+            ('LaserJet MFP E82560', 1, 'W9037MC', 'Black', 7, 0, 0, 0, 2),
+            ('LaserJet MFP M427fdw', 3, 'CF228XC', 'Black', 1, 8, 4, 0, 2),
+            ('LaserJet 700 color MFP M775', 2, 'CE340AC - K', 'Black', 4, 4, 3, 0, 2),
+            ('LaserJet 700 color MFP M775', 2, 'CE341AC - C', 'Cyan', 8, 7, 0, 0, 2),
+            ('LaserJet 700 color MFP M775', 2, 'CE342AC - Y', 'Yellow', 0, 6, 3, 0, 2),
+            ('LaserJet 700 color MFP M775', 2, 'CE343AC - M', 'Magenta', 6, 5, 4, 0, 2),
+            ('LaserJet Enterprise M611dn', 3, 'W1470YC', 'Black', 2, 4, 4, 0, 2)
         ]
         for item in toners:
-            cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', item)
+            cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', item)
     
     conn.commit()
     conn.close()

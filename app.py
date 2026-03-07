@@ -989,10 +989,10 @@ def login_section():
                     if item_type == "Consumable":
                         consumables = db.get_all_consumables()
                         sel_item = st.selectbox("Item", [c['item_name'] for c in consumables], key="edit_cons")
-                        sel_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="edit_cons_loc")
+                        sel_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="edit_cons_loc")
                         item = next((c for c in consumables if c['item_name'] == sel_item), None)
                         if item:
-                            loc_map = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage']}
+                            loc_map = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
                             new_qty = st.number_input(f"New Qty (Current: {loc_map[sel_loc]})", min_value=0, value=loc_map[sel_loc], key="edit_cons_qty")
                             if st.button("Update Stock", use_container_width=True, key="upd_cons"):
                                 db.set_consumable_stock(item['id'], sel_loc, new_qty)
@@ -1001,7 +1001,7 @@ def login_section():
                     else:
                         toners = db.get_all_toners()
                         sel_item = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in toners], key="edit_ton")
-                        sel_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="edit_ton_loc")
+                        sel_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="edit_ton_loc")
                         toner_model = sel_item.split(" - ")[0]
                         item = next((t for t in toners if t['toner_model'] == toner_model), None)
                         if item:
@@ -1162,13 +1162,13 @@ def consumables_dashboard():
             with col1:
                 st.markdown("#### 📤 Pick Item")
                 pick_item = st.selectbox("Select Item", [c['item_name'] for c in consumables], key="pick_c")
-                pick_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="pick_loc_c")
+                pick_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="pick_loc_c")
                 pick_qty = st.number_input("Quantity", min_value=1, value=1, key="pick_qty_c")
                 pick_notes = st.text_input("Notes (optional)", key="pick_notes_c")
                 if st.button("📤 Pick Item", key="pick_btn_c", use_container_width=True):
                     item = next((c for c in consumables if c['item_name'] == pick_item), None)
                     if item:
-                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage']}
+                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
                         if loc_stock[pick_loc] >= pick_qty:
                             db.update_consumable_stock(item['id'], pick_loc, -pick_qty)
                             db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({pick_loc})", "Pick", pick_qty, pick_notes)
@@ -1180,7 +1180,7 @@ def consumables_dashboard():
             with col2:
                 st.markdown("#### 📥 Stow Item")
                 stow_item = st.selectbox("Select Item", [c['item_name'] for c in consumables], key="stow_c")
-                stow_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="stow_loc_c")
+                stow_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="stow_loc_c")
                 stow_qty = st.number_input("Quantity", min_value=1, value=1, key="stow_qty_c")
                 stow_notes = st.text_input("Notes (optional)", key="stow_notes_c")
                 if st.button("📥 Stow Item", key="stow_btn_c", use_container_width=True):
@@ -1312,15 +1312,15 @@ def toner_dashboard():
             with col1:
                 st.markdown("#### 📤 Pick Toner")
                 pick_item = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in toners], key="pick_t")
-                pick_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="pick_loc_t")
+                pick_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="pick_loc_t")
                 pick_qty = st.number_input("Quantity", min_value=1, value=1, key="pick_qty_t")
                 pick_notes = st.text_input("Notes (optional)", key="pick_notes_t")
                 if st.button("📤 Pick Toner", key="pick_btn_t", use_container_width=True):
                     toner_model = pick_item.split(" - ")[0]
                     item = next((t for t in toners if t['toner_model'] == toner_model), None)
                     if item:
-                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage']}
-                        if loc_stock[pick_loc] >= pick_qty:
+                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
+                        if loc_stock.get(pick_loc, 0) >= pick_qty:
                             db.update_toner_stock(item['id'], pick_loc, -pick_qty)
                             db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({pick_loc})", "Pick", pick_qty, pick_notes)
                             st.session_state.success_msg = f"✅ Successfully Picked {pick_qty} x {item['toner_model']} from {pick_loc}"
@@ -1330,7 +1330,7 @@ def toner_dashboard():
             with col2:
                 st.markdown("#### 📥 Stow Toner")
                 stow_item = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in toners], key="stow_t")
-                stow_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage"], key="stow_loc_t")
+                stow_loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="stow_loc_t")
                 stow_qty = st.number_input("Quantity", min_value=1, value=1, key="stow_qty_t")
                 stow_notes = st.text_input("Notes (optional)", key="stow_notes_t")
                 if st.button("📥 Stow Toner", key="stow_btn_t", use_container_width=True):
