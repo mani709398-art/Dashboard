@@ -24,7 +24,7 @@ st.set_page_config(
     }
 )
 
-# Force desktop view on mobile
+# Force desktop view on mobile and add sidebar toggle
 st.markdown("""
 <meta name="viewport" content="width=1200, initial-scale=0.5, maximum-scale=1.0, user-scalable=yes">
 <style>
@@ -42,6 +42,57 @@ st.markdown("""
             min-width: 1000px !important;
             overflow-x: auto !important;
         }
+    }
+    
+    /* Sidebar toggle button - always visible */
+    .sidebar-toggle-btn {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        background: #0984e3;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 15px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .sidebar-toggle-btn:hover {
+        background: #0773c7;
+        transform: scale(1.05);
+    }
+    
+    /* Show toggle button when sidebar is collapsed */
+    [data-testid="stSidebar"][aria-expanded="false"] ~ .main .sidebar-toggle-btn,
+    [data-testid="collapsedControl"] {
+        display: block !important;
+    }
+    
+    /* Style the default Streamlit collapse button */
+    [data-testid="collapsedControl"] {
+        background: #0984e3 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+        top: 10px !important;
+        left: 10px !important;
+    }
+    
+    [data-testid="collapsedControl"] svg {
+        fill: white !important;
+    }
+    
+    /* Ensure the collapse control is always accessible */
+    button[kind="headerNoPadding"] {
+        background: #0984e3 !important;
+        border-radius: 8px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -464,70 +515,113 @@ st.markdown("""
         color: #2d3436 !important;
     }
     
-    /* RED SELECTION COLORS - All dropdowns and selects */
+    /* BLUE SELECTION COLORS - All dropdowns and selects for visibility */
     /* Selectbox border on focus */
     [data-baseweb="select"] > div:focus-within {
-        border-color: #e74c3c !important;
-        box-shadow: 0 0 0 1px #e74c3c !important;
+        border-color: #0984e3 !important;
+        box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.3) !important;
     }
     
-    /* Dropdown menu item hover */
+    /* Dropdown menu item hover - Blue background */
     [data-baseweb="menu"] li:hover,
     [data-baseweb="menu"] [role="option"]:hover,
     [role="listbox"] li:hover {
-        background-color: #e74c3c !important;
+        background-color: #0984e3 !important;
         color: white !important;
     }
     
-    /* Selected option in dropdown */
+    /* Selected option in dropdown - Blue background */
     [data-baseweb="menu"] [aria-selected="true"],
     [role="listbox"] [aria-selected="true"] {
-        background-color: #e74c3c !important;
+        background-color: #0984e3 !important;
         color: white !important;
     }
     
-    /* Checkbox styling - Red */
+    /* Dropdown list items - Blue hover */
+    [data-baseweb="popover"] [role="option"]:hover,
+    [data-baseweb="popover"] li:hover {
+        background-color: #0984e3 !important;
+        color: white !important;
+    }
+    
+    /* Selected dropdown item - Blue */
+    [data-baseweb="popover"] [aria-selected="true"],
+    [data-baseweb="popover"] li[aria-selected="true"] {
+        background-color: #0984e3 !important;
+        color: white !important;
+    }
+    
+    /* Dropdown menu styling */
+    [data-baseweb="popover"] {
+        background: white !important;
+    }
+    
+    [data-baseweb="menu"] {
+        background: white !important;
+    }
+    
+    /* Dropdown option text color */
+    [data-baseweb="menu"] li,
+    [data-baseweb="popover"] li,
+    [role="listbox"] li {
+        color: #2d3436 !important;
+        background: white !important;
+    }
+    
+    /* Override hover state */
+    [data-baseweb="menu"] li:hover,
+    [data-baseweb="popover"] li:hover,
+    [role="listbox"] li:hover {
+        background-color: #0984e3 !important;
+        color: white !important;
+    }
+    
+    /* Checkbox styling - Blue */
     .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child {
-        border-color: #e74c3c !important;
+        border-color: #0984e3 !important;
     }
     
     .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child[aria-checked="true"] {
-        background-color: #e74c3c !important;
-        border-color: #e74c3c !important;
+        background-color: #0984e3 !important;
+        border-color: #0984e3 !important;
     }
     
-    /* Radio button styling - Red */
+    /* Radio button styling - Blue */
     .stRadio > div > label > div:first-child {
-        border-color: #e74c3c !important;
+        border-color: #0984e3 !important;
     }
     
     .stRadio > div > label[data-checked="true"] > div:first-child {
-        background-color: #e74c3c !important;
-        border-color: #e74c3c !important;
+        background-color: #0984e3 !important;
+        border-color: #0984e3 !important;
     }
     
-    /* Input focus state - Red border */
+    /* Input focus state - Blue border */
     .stTextInput > div > div > input:focus,
     .stNumberInput > div > div > input:focus {
-        border-color: #e74c3c !important;
-        box-shadow: 0 0 0 1px #e74c3c !important;
+        border-color: #0984e3 !important;
+        box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.3) !important;
     }
     
     /* Sidebar selectbox on focus */
     [data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
-        border-color: #e74c3c !important;
+        border-color: #0984e3 !important;
     }
     
-    /* Dropdown list items */
-    [data-baseweb="popover"] [role="option"]:hover,
-    [data-baseweb="popover"] li:hover {
-        background-color: #e74c3c !important;
+    /* Selectbox selected value display - ensure dark text */
+    [data-baseweb="select"] [data-testid="stMarkdownContainer"] {
+        color: #2d3436 !important;
     }
     
-    /* Selected dropdown item */
-    [data-baseweb="popover"] [aria-selected="true"],
-    [data-baseweb="popover"] li[aria-selected="true"] {
-        background-color: #e74c3c !important;
+    /* Make sure dropdown items are visible */
+    div[data-baseweb="popover"] ul li {
+        padding: 10px 15px !important;
+        color: #2d3436 !important;
+    }
+    
+    div[data-baseweb="popover"] ul li:hover {
+        background-color: #0984e3 !important;
+        color: white !important;
     }
     
     /* Number input styling - white background */
