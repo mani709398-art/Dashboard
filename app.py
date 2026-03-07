@@ -1106,12 +1106,15 @@ def consumables_dashboard():
         df = pd.DataFrame(consumables)
         if not df.empty:
             df['S.No'] = range(1, len(df) + 1)
-            df_display = df[['S.No', 'item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'total_stock']].copy()
-            df_display.columns = ['S.No', 'Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'Total']
+            # Ensure p3_it_cage column exists with default 0
+            if 'p3_it_cage' not in df.columns:
+                df['p3_it_cage'] = 0
+            df_display = df[['S.No', 'item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            df_display.columns = ['S.No', 'Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
             
             # Export to Excel button
-            df_export = df[['item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'total_stock']].copy()
-            df_export.columns = ['Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'Total']
+            df_export = df[['item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            df_export.columns = ['Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_export.to_excel(writer, index=False, sheet_name='Consumables Inventory')
@@ -1124,7 +1127,7 @@ def consumables_dashboard():
                 key="export_consumables"
             )
             
-            for col in ['P1 IT Cage', 'HRV Backside', 'RF Cage']:
+            for col in ['P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage']:
                 df_display[col] = df_display[col].apply(lambda x: '-' if x == 0 else x)
             html_table = df_display.to_html(index=False, classes='styled-table')
             st.markdown(html_table, unsafe_allow_html=True)
@@ -1144,10 +1147,10 @@ def consumables_dashboard():
         
         with col2:
             st.markdown('<div class="content-card">', unsafe_allow_html=True)
-            loc_data = pd.DataFrame({'Location': ['P1 IT Cage', 'HRV Backside', 'RF Cage'], 
-                                     'Stock': [stats['p1_it_cage'], stats['hrv_backside'], stats['rf_cage']]})
+            loc_data = pd.DataFrame({'Location': ['P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage'], 
+                                     'Stock': [stats['p1_it_cage'], stats['hrv_backside'], stats['rf_cage'], stats.get('p3_it_cage', 0)]})
             fig = px.pie(loc_data, values='Stock', names='Location', title='Stock by Location',
-                        color_discrete_sequence=['#0984e3', '#f39c12', '#00b894'])
+                        color_discrete_sequence=['#0984e3', '#f39c12', '#00b894', '#9b59b6'])
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1260,12 +1263,15 @@ def toner_dashboard():
         df = pd.DataFrame(toners)
         if not df.empty:
             df['S.No'] = range(1, len(df) + 1)
-            df_display = df[['S.No', 'printer_model', 'printer_count', 'toner_model', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'total_stock']].copy()
-            df_display.columns = ['S.No', 'Printer Name', 'Printer Count', 'Toner', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'Total']
+            # Ensure p3_it_cage column exists with default 0
+            if 'p3_it_cage' not in df.columns:
+                df['p3_it_cage'] = 0
+            df_display = df[['S.No', 'printer_model', 'printer_count', 'toner_model', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            df_display.columns = ['S.No', 'Printer Name', 'Printer Count', 'Toner', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
             
             # Export to Excel button
-            df_export = df[['printer_model', 'printer_count', 'toner_model', 'color', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'total_stock']].copy()
-            df_export.columns = ['Printer Name', 'Printer Count', 'Toner Model', 'Color', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'Total']
+            df_export = df[['printer_model', 'printer_count', 'toner_model', 'color', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            df_export.columns = ['Printer Name', 'Printer Count', 'Toner Model', 'Color', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_export.to_excel(writer, index=False, sheet_name='Toner Inventory')
@@ -1278,7 +1284,7 @@ def toner_dashboard():
                 key="export_toners"
             )
             
-            for col in ['P1 IT Cage', 'HRV Backside', 'RF Cage']:
+            for col in ['P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage']:
                 df_display[col] = df_display[col].apply(lambda x: '-' if x == 0 else x)
             html_table = df_display.to_html(index=False, classes='styled-table')
             st.markdown(html_table, unsafe_allow_html=True)
@@ -1287,9 +1293,9 @@ def toner_dashboard():
         col1, col2 = st.columns(2)
         with col1:
             st.markdown('<div class="content-card">', unsafe_allow_html=True)
-            loc_data = pd.DataFrame({'Location': ['P1 IT Cage', 'HRV Backside', 'RF Cage'], 'Stock': [stats['p1_it_cage'], stats['hrv_backside'], stats['rf_cage']]})
+            loc_data = pd.DataFrame({'Location': ['P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage'], 'Stock': [stats['p1_it_cage'], stats['hrv_backside'], stats['rf_cage'], stats.get('p3_it_cage', 0)]})
             fig = px.pie(loc_data, values='Stock', names='Location', title='Stock by Location',
-                        color_discrete_sequence=['#0984e3', '#f39c12', '#00b894'])
+                        color_discrete_sequence=['#0984e3', '#f39c12', '#00b894', '#9b59b6'])
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
