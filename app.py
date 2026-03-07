@@ -474,6 +474,46 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
+    /* Dropdown menu - white background with dark text */
+    [data-baseweb="popover"] {
+        background: white !important;
+    }
+    
+    [data-baseweb="popover"] ul {
+        background: white !important;
+    }
+    
+    [data-baseweb="popover"] li {
+        background: white !important;
+        color: #1a2744 !important;
+    }
+    
+    [data-baseweb="popover"] li:hover {
+        background: #f0f2f5 !important;
+        color: #1a2744 !important;
+    }
+    
+    /* Selected item in dropdown - highlighted */
+    [data-baseweb="popover"] li[aria-selected="true"] {
+        background: #0984e3 !important;
+        color: white !important;
+    }
+    
+    /* Dropdown option text */
+    [data-baseweb="menu"] [role="option"] {
+        background: white !important;
+        color: #1a2744 !important;
+    }
+    
+    [data-baseweb="menu"] [role="option"]:hover {
+        background: #e8f4fd !important;
+    }
+    
+    [data-baseweb="menu"] [role="option"][aria-selected="true"] {
+        background: #0984e3 !important;
+        color: white !important;
+    }
+    
     /* Number input styling - white background */
     .stNumberInput > div > div > input {
         background: white !important;
