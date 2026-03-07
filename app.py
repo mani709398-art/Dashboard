@@ -24,6 +24,28 @@ st.set_page_config(
     }
 )
 
+# Force desktop view on mobile
+st.markdown("""
+<meta name="viewport" content="width=1200, initial-scale=0.5, maximum-scale=1.0, user-scalable=yes">
+<style>
+    /* Force minimum width for mobile desktop view */
+    .main .block-container {
+        min-width: 1000px !important;
+    }
+    
+    @media (max-width: 768px) {
+        .stApp {
+            min-width: 1000px !important;
+        }
+        
+        html, body {
+            min-width: 1000px !important;
+            overflow-x: auto !important;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Admin users who can add new users
 ADMIN_USERS = ['gmanisel', 'ddink', 'saswith']
 
@@ -93,7 +115,7 @@ st.markdown("""
     }
     
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label[data-checked="true"] {
-        background: #f39c12;
+        background: #e74c3c;
         color: white !important;
     }
     
@@ -303,9 +325,9 @@ st.markdown("""
     }
     
     .stTabs [aria-selected="true"] {
-        background: #0984e3;
+        background: #e74c3c;
         color: white;
-        border-color: #0984e3;
+        border-color: #e74c3c;
     }
     
     /* Table styling */
@@ -440,6 +462,72 @@ st.markdown("""
     /* Selectbox text - dark on white background */
     .main [data-baseweb="select"] span {
         color: #2d3436 !important;
+    }
+    
+    /* RED SELECTION COLORS - All dropdowns and selects */
+    /* Selectbox border on focus */
+    [data-baseweb="select"] > div:focus-within {
+        border-color: #e74c3c !important;
+        box-shadow: 0 0 0 1px #e74c3c !important;
+    }
+    
+    /* Dropdown menu item hover */
+    [data-baseweb="menu"] li:hover,
+    [data-baseweb="menu"] [role="option"]:hover,
+    [role="listbox"] li:hover {
+        background-color: #e74c3c !important;
+        color: white !important;
+    }
+    
+    /* Selected option in dropdown */
+    [data-baseweb="menu"] [aria-selected="true"],
+    [role="listbox"] [aria-selected="true"] {
+        background-color: #e74c3c !important;
+        color: white !important;
+    }
+    
+    /* Checkbox styling - Red */
+    .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child {
+        border-color: #e74c3c !important;
+    }
+    
+    .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child[aria-checked="true"] {
+        background-color: #e74c3c !important;
+        border-color: #e74c3c !important;
+    }
+    
+    /* Radio button styling - Red */
+    .stRadio > div > label > div:first-child {
+        border-color: #e74c3c !important;
+    }
+    
+    .stRadio > div > label[data-checked="true"] > div:first-child {
+        background-color: #e74c3c !important;
+        border-color: #e74c3c !important;
+    }
+    
+    /* Input focus state - Red border */
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: #e74c3c !important;
+        box-shadow: 0 0 0 1px #e74c3c !important;
+    }
+    
+    /* Sidebar selectbox on focus */
+    [data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
+        border-color: #e74c3c !important;
+    }
+    
+    /* Dropdown list items */
+    [data-baseweb="popover"] [role="option"]:hover,
+    [data-baseweb="popover"] li:hover {
+        background-color: #e74c3c !important;
+    }
+    
+    /* Selected dropdown item */
+    [data-baseweb="popover"] [aria-selected="true"],
+    [data-baseweb="popover"] li[aria-selected="true"] {
+        background-color: #e74c3c !important;
     }
     
     /* Number input styling - white background */
