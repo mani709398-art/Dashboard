@@ -463,38 +463,83 @@ st.markdown("""
         color: #1a2744 !important;
     }
     
-    /* Selectbox text - WHITE for dark bg */
-    .main [data-baseweb="select"] span {
+    /* Selectbox text - WHITE for dark bg - MOBILE COMPATIBLE */
+    .main [data-baseweb="select"] span,
+    .main [data-baseweb="select"] div[class*="valueContainer"] span,
+    .main [data-baseweb="select"] [data-testid] span,
+    [data-baseweb="select"] span[class*="single"],
+    .stSelectbox span {
         color: #ffffff !important;
         font-weight: 700 !important;
         font-size: 16px !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
     
     /* All selectbox values bold and visible */
     [data-baseweb="select"] span {
         font-weight: 700 !important;
+        -webkit-text-fill-color: inherit !important;
     }
     
-    /* MAIN AREA selectboxes - dark bg matching sidebar style */
-    .main [data-baseweb="select"] > div {
+    /* MAIN AREA selectboxes - dark bg matching sidebar style - MOBILE COMPATIBLE */
+    .main [data-baseweb="select"] > div,
+    .main [data-baseweb="select"] [class*="control"],
+    .main .stSelectbox [data-baseweb="select"] > div,
+    .stSelectbox > div > div[data-baseweb="select"] > div {
         background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
         border: 2px solid #f39c12 !important;
+        -webkit-appearance: none !important;
     }
     
-    .main [data-baseweb="select"] > div > div {
+    .main [data-baseweb="select"] > div > div,
+    .main [data-baseweb="select"] [class*="valueContainer"],
+    .stSelectbox [data-baseweb="select"] > div > div {
         background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
     
-    /* Selectbox value container in main - dark bg with orange border */
-    .main .stSelectbox > div > div {
+    /* Selectbox value container in main - dark bg with orange border - MOBILE */
+    .main .stSelectbox > div > div,
+    .stSelectbox > div > div {
         background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
         border: 2px solid #f39c12 !important;
         border-radius: 8px !important;
     }
     
     .main .stSelectbox [data-baseweb="select"] > div {
         background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
+    }
+    
+    /* Mobile-specific overrides for iOS/Android */
+    @media screen and (max-width: 768px) {
+        .main [data-baseweb="select"] span,
+        .stSelectbox span,
+        [data-baseweb="select"] span {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+        
+        .main [data-baseweb="select"] > div,
+        .stSelectbox > div > div,
+        [data-baseweb="select"] > div {
+            background: #2d3a4a !important;
+            background-color: #2d3a4a !important;
+            border: 2px solid #f39c12 !important;
+        }
+        
+        /* Force input styling on mobile */
+        .stSelectbox input,
+        [data-baseweb="select"] input {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            background: transparent !important;
+        }
     }
     
     /* SIDEBAR selectboxes - dark bg with WHITE text */
