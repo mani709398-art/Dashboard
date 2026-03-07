@@ -24,99 +24,26 @@ st.set_page_config(
     }
 )
 
-# Force desktop view on mobile and add sidebar toggle
-st.markdown("""
-<meta name="viewport" content="width=1200, initial-scale=0.5, maximum-scale=1.0, user-scalable=yes">
-<style>
-    /* Force minimum width for mobile desktop view */
-    .main .block-container {
-        min-width: 1000px !important;
-    }
-    
-    @media (max-width: 768px) {
-        .stApp {
-            min-width: 1000px !important;
-        }
-        
-        html, body {
-            min-width: 1000px !important;
-            overflow-x: auto !important;
-        }
-    }
-    
-    /* Sidebar toggle button - always visible */
-    .sidebar-toggle-btn {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 9999;
-        background: #0984e3;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 15px;
-        font-size: 1.2rem;
-        cursor: pointer;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .sidebar-toggle-btn:hover {
-        background: #0773c7;
-        transform: scale(1.05);
-    }
-    
-    /* Show toggle button when sidebar is collapsed */
-    [data-testid="stSidebar"][aria-expanded="false"] ~ .main .sidebar-toggle-btn,
-    [data-testid="collapsedControl"] {
-        display: block !important;
-    }
-    
-    /* Style the default Streamlit collapse button */
-    [data-testid="collapsedControl"] {
-        background: #0984e3 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        padding: 8px !important;
-        top: 10px !important;
-        left: 10px !important;
-    }
-    
-    [data-testid="collapsedControl"] svg {
-        fill: white !important;
-    }
-    
-    /* Ensure the collapse control is always accessible */
-    button[kind="headerNoPadding"] {
-        background: #0984e3 !important;
-        border-radius: 8px !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Admin users who can add new users
 ADMIN_USERS = ['gmanisel', 'ddink', 'saswith']
 
 # MDF Style CSS - Dark Navy Theme with White Cards and Orange Accents
 st.markdown("""
 <style>
-    /* Main app background - Dark Navy */
+    /* Main app background - Light Gray */
     .stApp {
-        background: #1e2a3a;
+        background: #f0f2f5;
     }
     
     /* Main content area */
     .main .block-container {
-        background: #1e2a3a;
+        background: #f0f2f5;
         padding: 1rem 2rem;
     }
     
     /* Header styling */
     .main-header {
-        color: #ffffff;
+        color: #1a2744;
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 0.3rem;
@@ -126,7 +53,7 @@ st.markdown("""
     }
     
     .sub-header {
-        color: #4db6ac;
+        color: #0984e3;
         font-size: 1rem;
         margin-bottom: 1.5rem;
         font-weight: 500;
@@ -166,7 +93,7 @@ st.markdown("""
     }
     
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label[data-checked="true"] {
-        background: #e74c3c;
+        background: #f39c12;
         color: white !important;
     }
     
@@ -178,17 +105,17 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* Custom metric cards - White with shadow */
+    /* Custom metric cards - Dark Navy with shadow */
     .metric-card {
-        background: #ffffff;
+        background: linear-gradient(135deg, #1a2744 0%, #2d3a4a 100%);
         border-radius: 12px;
         padding: 20px 25px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 25px rgba(0,0,0,0.2);
         margin-bottom: 15px;
     }
     
     .metric-label {
-        color: #666666;
+        color: #ffffff;
         font-size: 0.85rem;
         font-weight: 500;
         text-transform: uppercase;
@@ -223,7 +150,7 @@ st.markdown("""
     }
     
     .metric-value-dark {
-        color: #2d3436;
+        color: #ffffff;
     }
     
     .metric-sub {
@@ -260,21 +187,21 @@ st.markdown("""
     
     /* White content cards */
     .content-card {
-        background: #1a2744;
+        background: #ffffff;
         border-radius: 12px;
         padding: 25px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         margin-bottom: 20px;
-        color: #ffffff;
+        color: #2d3436;
     }
     
     .card-header {
-        color: #ffffff !important;
+        color: #1a2744 !important;
         font-size: 1.2rem;
         font-weight: 600;
         margin-bottom: 20px;
         padding-bottom: 15px;
-        border-bottom: 2px solid rgba(255,255,255,0.2);
+        border-bottom: 2px solid #f0f2f5;
         background: transparent;
     }
     
@@ -283,9 +210,9 @@ st.markdown("""
         color: #ffffff;
     }
     
-    /* Headers inside tabs - white on dark cards */
+    /* Headers inside tabs */
     h4, h3, h2, h1 {
-        color: #ffffff !important;
+        color: #1a2744 !important;
     }
     
     /* Plotly chart titles - white */
@@ -309,12 +236,12 @@ st.markdown("""
     
     /* Alert styling */
     .low-stock-alert {
-        background: #fff5f5;
+        background: #3d2a2a;
         border-left: 4px solid #e74c3c;
         padding: 12px 18px;
         margin: 8px 0;
         border-radius: 0 8px 8px 0;
-        color: #2d3436;
+        color: #ffffff;
     }
     
     /* Orange buttons */
@@ -367,25 +294,25 @@ st.markdown("""
     }
     
     .stTabs [data-baseweb="tab"] {
-        background: #ffffff;
+        background: #2d3a4a;
         border-radius: 8px;
         padding: 12px 24px;
         font-weight: 600;
-        color: #2d3436;
-        border: 2px solid #e0e0e0;
+        color: #ffffff;
+        border: 2px solid #3d4a5a;
     }
     
     .stTabs [aria-selected="true"] {
-        background: #e74c3c;
+        background: #0984e3;
         color: white;
-        border-color: #e74c3c;
+        border-color: #0984e3;
     }
     
     /* Table styling */
     .styled-table {
         width: 100%;
         border-collapse: collapse;
-        background: white;
+        background: #2d3a4a;
         border-radius: 8px;
         overflow: hidden;
     }
@@ -406,12 +333,12 @@ st.markdown("""
     .styled-table td {
         padding: 12px 15px;
         text-align: center;
-        border-bottom: 1px solid #f0f0f0;
-        color: #2d3436;
+        border-bottom: 1px solid #3d4a5a;
+        color: #ffffff;
     }
     
     .styled-table tbody tr:hover {
-        background-color: #f8f9fa;
+        background-color: #3d4a5a;
     }
     
     /* User card - Green style */
@@ -450,7 +377,15 @@ st.markdown("""
     
     /* Section headers */
     .section-title {
-        color: #ffffff;
+        color: #1a2744;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 20px 0 15px 0;
+    }
+    
+    /* Low stock alert title - red */
+    .section-title-alert {
+        color: #e74c3c;
         font-size: 1.1rem;
         font-weight: 600;
         margin: 20px 0 15px 0;
@@ -515,115 +450,6 @@ st.markdown("""
         color: #2d3436 !important;
     }
     
-    /* BLUE SELECTION COLORS - All dropdowns and selects for visibility */
-    /* Selectbox border on focus */
-    [data-baseweb="select"] > div:focus-within {
-        border-color: #0984e3 !important;
-        box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.3) !important;
-    }
-    
-    /* Dropdown menu item hover - Blue background */
-    [data-baseweb="menu"] li:hover,
-    [data-baseweb="menu"] [role="option"]:hover,
-    [role="listbox"] li:hover {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
-    /* Selected option in dropdown - Blue background */
-    [data-baseweb="menu"] [aria-selected="true"],
-    [role="listbox"] [aria-selected="true"] {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
-    /* Dropdown list items - Blue hover */
-    [data-baseweb="popover"] [role="option"]:hover,
-    [data-baseweb="popover"] li:hover {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
-    /* Selected dropdown item - Blue */
-    [data-baseweb="popover"] [aria-selected="true"],
-    [data-baseweb="popover"] li[aria-selected="true"] {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
-    /* Dropdown menu styling */
-    [data-baseweb="popover"] {
-        background: white !important;
-    }
-    
-    [data-baseweb="menu"] {
-        background: white !important;
-    }
-    
-    /* Dropdown option text color */
-    [data-baseweb="menu"] li,
-    [data-baseweb="popover"] li,
-    [role="listbox"] li {
-        color: #2d3436 !important;
-        background: white !important;
-    }
-    
-    /* Override hover state */
-    [data-baseweb="menu"] li:hover,
-    [data-baseweb="popover"] li:hover,
-    [role="listbox"] li:hover {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
-    /* Checkbox styling - Blue */
-    .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child {
-        border-color: #0984e3 !important;
-    }
-    
-    .stCheckbox > label > div[data-testid="stCheckbox"] > div:first-child[aria-checked="true"] {
-        background-color: #0984e3 !important;
-        border-color: #0984e3 !important;
-    }
-    
-    /* Radio button styling - Blue */
-    .stRadio > div > label > div:first-child {
-        border-color: #0984e3 !important;
-    }
-    
-    .stRadio > div > label[data-checked="true"] > div:first-child {
-        background-color: #0984e3 !important;
-        border-color: #0984e3 !important;
-    }
-    
-    /* Input focus state - Blue border */
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #0984e3 !important;
-        box-shadow: 0 0 0 2px rgba(9, 132, 227, 0.3) !important;
-    }
-    
-    /* Sidebar selectbox on focus */
-    [data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within {
-        border-color: #0984e3 !important;
-    }
-    
-    /* Selectbox selected value display - ensure dark text */
-    [data-baseweb="select"] [data-testid="stMarkdownContainer"] {
-        color: #2d3436 !important;
-    }
-    
-    /* Make sure dropdown items are visible */
-    div[data-baseweb="popover"] ul li {
-        padding: 10px 15px !important;
-        color: #2d3436 !important;
-    }
-    
-    div[data-baseweb="popover"] ul li:hover {
-        background-color: #0984e3 !important;
-        color: white !important;
-    }
-    
     /* Number input styling - white background */
     .stNumberInput > div > div > input {
         background: white !important;
@@ -648,7 +474,7 @@ st.markdown("""
     
     /* Dataframe styling */
     [data-testid="stDataFrame"] {
-        background: white;
+        background: #2d3a4a;
         border-radius: 8px;
     }
     
@@ -695,9 +521,21 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Hide header decoration/toolbar */
+    /* Style header - show sidebar toggle */
     header[data-testid="stHeader"] {
-        display: none !important;
+        background: #f0f2f5 !important;
+        height: 40px !important;
+    }
+    
+    /* Sidebar toggle button - make visible */
+    [data-testid="stSidebarCollapsedControl"] {
+        background: #1a2744 !important;
+        color: white !important;
+    }
+    
+    [data-testid="stSidebarCollapsedControl"] svg {
+        fill: white !important;
+        stroke: white !important;
     }
     
     /* Reduce top padding */
@@ -989,10 +827,9 @@ def consumables_dashboard():
     with col4:
         st.markdown(create_metric_card("CATEGORIES", stats['categories'], "metric-value-purple"), unsafe_allow_html=True)
     
-    # Low stock alerts
-    if low_stock:
-        st.markdown('<div class="section-title">⚠️ Low Stock Alerts</div>', unsafe_allow_html=True)
-        st.markdown('<div class="content-card">', unsafe_allow_html=True)
+    # Low stock alerts - only show if there are items
+    if low_stock and len(low_stock) > 0:
+        st.markdown('<div class="section-title-alert">⚠️ Low Stock Alerts</div>', unsafe_allow_html=True)
         for item in low_stock:
             st.markdown(f"""
             <div class="low-stock-alert">
@@ -1000,7 +837,6 @@ def consumables_dashboard():
                 (Min: {item['min_stock_level']}) | P1: {item['p1_it_cage']} | HRV: {item['hrv_backside']} | RF: {item['rf_cage']}
             </div>
             """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
     
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📋 Inventory", "🔄 Pick/Stow", "📜 History"])
@@ -1058,12 +894,11 @@ def consumables_dashboard():
             st.markdown('</div>', unsafe_allow_html=True)
     
     with tab2:
-        st.markdown('<div class="content-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">🔄 Pick / Stow Operations</div>', unsafe_allow_html=True)
-        
         if not st.session_state.logged_in_user:
             st.warning("⚠️ Please login to perform pick/stow operations")
         else:
+            st.markdown('<div class="content-card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-header">🔄 Pick / Stow Operations</div>', unsafe_allow_html=True)
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### 📤 Pick Item")
@@ -1096,7 +931,7 @@ def consumables_dashboard():
                         db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({stow_loc})", "Stow", stow_qty, stow_notes)
                         st.session_state.success_msg = f"✅ Successfully Stowed {stow_qty} x {stow_item} to {stow_loc}"
                         st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
     
     with tab3:
         st.markdown('<div class="content-card">', unsafe_allow_html=True)
@@ -1147,10 +982,9 @@ def toner_dashboard():
     with col3:
         st.markdown(create_metric_card("RF CAGE", stats['rf_cage'], "metric-value-green"), unsafe_allow_html=True)
     
-    # Low stock alerts
-    if low_stock:
-        st.markdown('<div class="section-title">⚠️ Low Stock Alerts</div>', unsafe_allow_html=True)
-        st.markdown('<div class="content-card">', unsafe_allow_html=True)
+    # Low stock alerts - only show if there are items
+    if low_stock and len(low_stock) > 0:
+        st.markdown('<div class="section-title-alert">⚠️ Low Stock Alerts</div>', unsafe_allow_html=True)
         for item in low_stock:
             st.markdown(f"""
             <div class="low-stock-alert">
@@ -1158,7 +992,6 @@ def toner_dashboard():
                 🖨️ {item['printer_model']} | Stock: <strong>{item['total_stock']}</strong> (Min: {item['min_stock_level']})
             </div>
             """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
     
     tab1, tab2, tab3 = st.tabs(["📋 Inventory", "🔄 Pick/Stow", "📜 History"])
     
@@ -1211,11 +1044,11 @@ def toner_dashboard():
             st.markdown('</div>', unsafe_allow_html=True)
     
     with tab2:
-        st.markdown('<div class="content-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">🔄 Pick / Stow Operations</div>', unsafe_allow_html=True)
         if not st.session_state.logged_in_user:
             st.warning("⚠️ Please login to perform pick/stow operations")
         else:
+            st.markdown('<div class="content-card">', unsafe_allow_html=True)
+            st.markdown('<div class="card-header">🔄 Pick / Stow Operations</div>', unsafe_allow_html=True)
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### 📤 Pick Toner")
@@ -1249,7 +1082,7 @@ def toner_dashboard():
                         db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({stow_loc})", "Stow", stow_qty, stow_notes)
                         st.session_state.success_msg = f"✅ Successfully Stowed {stow_qty} x {item['toner_model']} to {stow_loc}"
                         st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
     
     with tab3:
         st.markdown('<div class="content-card">', unsafe_allow_html=True)

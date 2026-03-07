@@ -1,114 +1,109 @@
-# 🏭 IT Inventory Tracking Dashboard
+# Consumables & Toners Tracking Dashboard
 
-A real-time web dashboard for tracking Consumables & Toners inventory with multi-user support.
+A comprehensive web-based dashboard for tracking consumables and toners inventory with login-wise activity tracking, stock management, and analytics.
 
-## ✨ Features
+## Features
 
-- 📦 **Consumables Inventory** - Track IT equipment & accessories
-- 🖨️ **Toner Inventory** - Track printer toners & cartridges
-- 🔄 **Pick/Stow Operations** - Real-time stock updates
-- 📊 **Charts & Analytics** - Visual stock distribution
-- 👥 **Multi-User Support** - Admin and regular user roles
-- 📥 **Export to Excel** - Download inventory data
-- 📋 **Activity Log** - Complete transaction history
-- 🔐 **Password Protection** - Secure admin access
+### 📦 Consumables Dashboard
+- Total items in stock overview
+- Low stock alerts with visual indicators
+- Recent pick/stow activity tracking
+- Item movement history
+- Stock distribution by category (pie chart)
+- Top items by stock (bar chart)
 
-## 🚀 Deploy to Internet (FREE)
+### 🖨️ Toner Dashboard
+- Printer-wise toner availability
+- Location-wise stock (P1 IT Cage, HRV Backside, RF Cage)
+- Remaining toner count with color coding
+- Usage trend visualization
+- Stock by toner color breakdown
 
-### Option 1: Render.com (Recommended - Easiest)
+### 📋 Activity Dashboard
+- Who picked/stowed items tracking
+- Timestamp and quantity logging
+- Item type filtering (Consumable/Toner)
+- User-wise transaction summary
+- Daily activity trends (30-day view)
+- Date range search with CSV export
 
-1. **Create GitHub Repository:**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   ```
-   - Go to https://github.com/new
-   - Create new repository
-   - Push your code:
-   ```bash
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-   git branch -M main
-   git push -u origin main
-   ```
+## Tech Stack
 
-2. **Deploy on Render:**
-   - Go to https://render.com
-   - Sign up with GitHub
-   - Click **"New +"** → **"Web Service"**
-   - Connect your GitHub repository
-   - Settings:
-     - **Build Command:** `pip install -r requirements.txt`
-     - **Start Command:** `streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true`
-   - Click **"Create Web Service"**
+- **Frontend**: Streamlit
+- **Database**: SQLite
+- **Visualization**: Plotly
+- **Data Processing**: Pandas
 
-3. **Your app will be live at:** `https://your-app-name.onrender.com`
+## Installation
 
----
+1. Clone or download the project files
 
-### Option 2: Streamlit Community Cloud (Easiest but Limited)
-
-1. Push code to GitHub (same as above)
-2. Go to https://share.streamlit.io
-3. Click **"New app"** → Select your repo → Deploy
-4. Get URL: `https://your-app.streamlit.app`
-
----
-
-### Option 3: Railway.app
-
-1. Go to https://railway.app
-2. Sign up with GitHub
-3. Click **"New Project"** → **"Deploy from GitHub repo"**
-4. Select your repository
-5. Railway auto-detects settings from Procfile
-
----
-
-## 💻 Local Development
-
+2. Install dependencies:
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run locally
-streamlit run app.py
-
-# Run on network (access from other devices)
-streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-## 📁 Project Structure
+3. Initialize the database (optional - auto-initialized on first run):
+```bash
+python database.py
+```
+
+4. Run the application:
+```bash
+streamlit run app.py
+```
+
+## Usage
+
+1. **Login**: Select a user from the dropdown in the sidebar and click "Login"
+2. **Navigate**: Use the sidebar radio buttons to switch between dashboards
+3. **Pick/Stow Operations**: 
+   - Login first to enable pick/stow functionality
+   - Select item, enter quantity, and click the appropriate button
+4. **View History**: Use the "Item History" tab to track movements
+5. **Export Data**: Use the Search tab in Activity Dashboard to export CSV reports
+
+## Database Schema
+
+### Users
+- id, username, full_name, department, created_at
+
+### Consumables
+- id, item_name, category, current_stock, min_stock_level, unit, location, last_updated
+
+### Toners
+- id, toner_model, printer_model, color, current_stock, min_stock_level, location, last_updated
+
+### Activity Log
+- id, user_id, item_type, item_id, item_name, action_type, quantity, notes, timestamp
+
+## Sample Data
+
+The application comes pre-loaded with sample data including:
+- 5 sample users (Admin, John Doe, Jane Smith, Mike Wilson, Sarah Jones)
+- 15 consumable items across various categories
+- 15 toner types for different printers
+- 50 sample activity records
+
+## File Structure
 
 ```
 ├── app.py              # Main Streamlit application
-├── database.py         # Database functions
+├── database.py         # Database operations and schema
 ├── requirements.txt    # Python dependencies
-├── Procfile           # Deployment configuration
-├── runtime.txt        # Python version for deployment
-├── .gitignore         # Git ignore file
-└── README.md          # This file
+├── README.md          # Documentation
+└── tracking_dashboard.db  # SQLite database (auto-created)
 ```
 
-## 👤 Default Admin Users
+## Screenshots
 
-| Username | Password |
-|----------|----------|
-| gmanisel | MAA4@123 |
-| ddink    | MAA4@123 |
-| saswith  | MAA4@123 |
+The dashboard includes:
+- Real-time metrics display
+- Interactive charts and graphs
+- Color-coded status indicators (🟢 OK, 🔴 Low)
+- Filterable activity logs
+- Expandable location-wise toner views
 
-## 📱 Access from Mobile
+## License
 
-The dashboard is fully responsive and works on mobile browsers. Simply access the URL from any device.
-
-## 🔒 Security Note
-
-For production use, consider:
-- Changing default admin passwords
-- Using environment variables for sensitive data
-- Implementing HTTPS (automatically handled by Render/Railway)
-
-## 📞 Support
-
-For issues or feature requests, contact IT team.
+MIT License - Free to use and modify
