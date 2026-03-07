@@ -463,9 +463,9 @@ st.markdown("""
         color: #1a2744 !important;
     }
     
-    /* Selectbox text - HIGH CONTRAST for visibility */
+    /* Selectbox text - RED for HIGH visibility */
     .main [data-baseweb="select"] span {
-        color: #000000 !important;
+        color: #e74c3c !important;
         font-weight: 700 !important;
         font-size: 16px !important;
     }
@@ -741,7 +741,7 @@ if 'logged_in_user' not in st.session_state:
 if 'success_msg' not in st.session_state:
     st.session_state.success_msg = None
 if 'theme' not in st.session_state:
-    st.session_state.theme = 'light'
+    st.session_state.theme = 'dark'
 
 # Show success message as toast notification
 if st.session_state.success_msg:
