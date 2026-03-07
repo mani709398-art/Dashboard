@@ -463,15 +463,59 @@ st.markdown("""
         color: #1a2744 !important;
     }
     
-    /* Selectbox text - dark on white background and BOLD */
+    /* Selectbox text - HIGH CONTRAST for visibility */
     .main [data-baseweb="select"] span {
-        color: #2d3436 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+    }
+    
+    /* All selectbox values bold and visible */
+    [data-baseweb="select"] span {
         font-weight: 700 !important;
     }
     
-    /* All selectbox values bold everywhere */
-    [data-baseweb="select"] span {
+    /* MAIN AREA selectboxes - white bg with dark text */
+    .main [data-baseweb="select"] > div {
+        background: #ffffff !important;
+        border: 2px solid #0984e3 !important;
+    }
+    
+    .main [data-baseweb="select"] > div > div {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    
+    /* Selectbox value container in main */
+    .main .stSelectbox > div > div {
+        background: #ffffff !important;
+        border: 2px solid #0984e3 !important;
+        border-radius: 8px !important;
+    }
+    
+    .main .stSelectbox [data-baseweb="select"] > div {
+        background: #ffffff !important;
+    }
+    
+    /* SIDEBAR selectboxes - dark bg with WHITE text */
+    [data-testid="stSidebar"] .stSelectbox > div > div {
+        background: #2d3a4a !important;
+        border: 2px solid #f39c12 !important;
+        border-radius: 8px !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background: #2d3a4a !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] > div > div {
+        background: #2d3a4a !important;
+    }
+    
+    [data-testid="stSidebar"] [data-baseweb="select"] span {
+        color: #ffffff !important;
         font-weight: 700 !important;
+        font-size: 16px !important;
     }
     
     /* Dropdown menu - white background with dark text */
@@ -696,11 +740,41 @@ if 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = None
 if 'success_msg' not in st.session_state:
     st.session_state.success_msg = None
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'light'
 
 # Show success message as toast notification
 if st.session_state.success_msg:
     st.toast(st.session_state.success_msg, icon="✅")
     st.session_state.success_msg = None
+
+# Theme toggle at top of page
+theme_col1, theme_col2 = st.columns([8, 1])
+with theme_col2:
+    theme_icon = "🌙" if st.session_state.theme == 'light' else "☀️"
+    if st.button(theme_icon, key="theme_toggle", help="Toggle Dark/Light Mode"):
+        st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
+        st.rerun()
+
+# Apply dark theme CSS if enabled
+if st.session_state.theme == 'dark':
+    st.markdown("""
+    <style>
+        .stApp { background: #1a1a2e !important; }
+        .main .block-container { background: #1a1a2e !important; }
+        .main-header { color: #ffffff !important; }
+        .sub-header { color: #00b894 !important; }
+        .content-card { background: #16213e !important; }
+        .card-header { color: #ffffff !important; }
+        h4, h3, h2, h1 { color: #ffffff !important; }
+        .section-title { color: #ffffff !important; }
+        .section-title-alert { color: #ff6b6b !important; }
+        .last-updated { color: #aaa !important; }
+        .main label { color: #ffffff !important; }
+        .main [data-testid="stWidgetLabel"] p { color: #ffffff !important; }
+        header[data-testid="stHeader"] { background: #1a1a2e !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
 
 def create_metric_card(label, value, color_class="metric-value-dark", sub_text=""):
