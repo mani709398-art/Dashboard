@@ -463,9 +463,9 @@ st.markdown("""
         color: #1a2744 !important;
     }
     
-    /* Selectbox text - RED for HIGH visibility */
+    /* Selectbox text - WHITE for dark bg */
     .main [data-baseweb="select"] span {
-        color: #e74c3c !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
         font-size: 16px !important;
     }
@@ -475,26 +475,26 @@ st.markdown("""
         font-weight: 700 !important;
     }
     
-    /* MAIN AREA selectboxes - white bg with dark text */
+    /* MAIN AREA selectboxes - dark bg matching sidebar style */
     .main [data-baseweb="select"] > div {
-        background: #ffffff !important;
-        border: 2px solid #0984e3 !important;
+        background: #2d3a4a !important;
+        border: 2px solid #f39c12 !important;
     }
     
     .main [data-baseweb="select"] > div > div {
-        background: #ffffff !important;
-        color: #000000 !important;
+        background: #2d3a4a !important;
+        color: #ffffff !important;
     }
     
-    /* Selectbox value container in main */
+    /* Selectbox value container in main - dark bg with orange border */
     .main .stSelectbox > div > div {
-        background: #ffffff !important;
-        border: 2px solid #0984e3 !important;
+        background: #2d3a4a !important;
+        border: 2px solid #f39c12 !important;
         border-radius: 8px !important;
     }
     
     .main .stSelectbox [data-baseweb="select"] > div {
-        background: #ffffff !important;
+        background: #2d3a4a !important;
     }
     
     /* SIDEBAR selectboxes - dark bg with WHITE text */
@@ -770,9 +770,21 @@ if st.session_state.theme == 'dark':
         .section-title { color: #ffffff !important; }
         .section-title-alert { color: #ff6b6b !important; }
         .last-updated { color: #aaa !important; }
-        .main label { color: #ffffff !important; }
-        .main [data-testid="stWidgetLabel"] p { color: #ffffff !important; }
         header[data-testid="stHeader"] { background: #1a1a2e !important; }
+        
+        /* ALL form labels WHITE in dark mode */
+        .main label { color: #ffffff !important; }
+        .main [data-testid="stWidgetLabel"] { color: #ffffff !important; }
+        .main [data-testid="stWidgetLabel"] p { color: #ffffff !important; }
+        .main [data-testid="stWidgetLabel"] span { color: #ffffff !important; }
+        .main .stSelectbox label { color: #ffffff !important; }
+        .main .stSelectbox label p { color: #ffffff !important; }
+        .main .stTextInput label { color: #ffffff !important; }
+        .main .stTextInput label p { color: #ffffff !important; }
+        .main .stNumberInput label { color: #ffffff !important; }
+        .main .stNumberInput label p { color: #ffffff !important; }
+        .stTabs [data-baseweb="tab-panel"] label { color: #ffffff !important; }
+        .stTabs [data-baseweb="tab-panel"] [data-testid="stWidgetLabel"] p { color: #ffffff !important; }
     </style>
     """, unsafe_allow_html=True)
 
