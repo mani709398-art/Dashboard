@@ -19,6 +19,8 @@ def init_database():
     create_activities_table()
     # Add p3_it_cage column if it doesn't exist
     add_p3_it_cage_column()
+    # Add before/after count columns if they don't exist
+    add_activity_count_columns()
 
 
 def create_users_table():
@@ -106,10 +108,26 @@ def create_activities_table():
         item_name TEXT NOT NULL,
         action_type TEXT NOT NULL,
         quantity INTEGER NOT NULL,
+        before_count INTEGER DEFAULT 0,
+        after_count INTEGER DEFAULT 0,
         notes TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )''')
+    conn.commit()
+    conn.close()
+
+
+def add_activity_count_columns():
+    """Add before_count and after_count columns to existing activities table if not exists"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(activities)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'before_count' not in columns:
+        cursor.execute('ALTER TABLE activities ADD COLUMN before_count INTEGER DEFAULT 0')
+    if 'after_count' not in columns:
+        cursor.execute('ALTER TABLE activities ADD COLUMN after_count INTEGER DEFAULT 0')
     conn.commit()
     conn.close()
 
@@ -293,11 +311,11 @@ def get_toner_stats():
     return stats
 
 
-def log_activity(user_id, item_type, item_id, item_name, action_type, quantity, notes=''):
+def log_activity(user_id, item_type, item_id, item_name, action_type, quantity, notes='', before_count=0, after_count=0):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO activities (user_id, item_type, item_id, item_name, action_type, quantity, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                   (user_id, item_type, item_id, item_name, action_type, quantity, notes))
+    cursor.execute('INSERT INTO activities (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                   (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes))
     conn.commit()
     conn.close()
 

@@ -1172,9 +1172,11 @@ def consumables_dashboard():
                     item = next((c for c in consumables if c['item_name'] == pick_item), None)
                     if item:
                         loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
-                        if loc_stock[pick_loc] >= pick_qty:
+                        before_count = loc_stock[pick_loc]
+                        if before_count >= pick_qty:
+                            after_count = before_count - pick_qty
                             db.update_consumable_stock(item['id'], pick_loc, -pick_qty)
-                            db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({pick_loc})", "Pick", pick_qty, pick_notes)
+                            db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({pick_loc})", "Pick", pick_qty, pick_notes, before_count, after_count)
                             st.session_state.success_msg = f"✅ Successfully Picked {pick_qty} x {pick_item} from {pick_loc}"
                             st.rerun()
                         else:
@@ -1189,8 +1191,11 @@ def consumables_dashboard():
                 if st.button("📥 Stow Item", key="stow_btn_c", use_container_width=True):
                     item = next((c for c in consumables if c['item_name'] == stow_item), None)
                     if item:
+                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
+                        before_count = loc_stock[stow_loc]
+                        after_count = before_count + stow_qty
                         db.update_consumable_stock(item['id'], stow_loc, stow_qty)
-                        db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({stow_loc})", "Stow", stow_qty, stow_notes)
+                        db.log_activity(st.session_state.logged_in_user, "Consumable", item['id'], f"{item['item_name']} ({stow_loc})", "Stow", stow_qty, stow_notes, before_count, after_count)
                         st.session_state.success_msg = f"✅ Successfully Stowed {stow_qty} x {stow_item} to {stow_loc}"
                         st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1203,7 +1208,14 @@ def consumables_dashboard():
         if consumable_activities:
             df_act = pd.DataFrame(consumable_activities)
             df_act['timestamp'] = pd.to_datetime(df_act['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_act[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'notes']], use_container_width=True, hide_index=True)
+            # Add before/after columns with default 0 if not exist
+            if 'before_count' not in df_act.columns:
+                df_act['before_count'] = 0
+            if 'after_count' not in df_act.columns:
+                df_act['after_count'] = 0
+            df_display = df_act[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count', 'notes']].copy()
+            df_display.columns = ['Time', 'User', 'Item', 'Action', 'Qty', 'Before', 'After', 'Notes']
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
         else:
             st.info("No consumable activity history yet. Activities will appear here after pick/stow operations.")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1326,9 +1338,11 @@ def toner_dashboard():
                     item = next((t for t in toners if t['toner_model'] == toner_model), None)
                     if item:
                         loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
-                        if loc_stock.get(pick_loc, 0) >= pick_qty:
+                        before_count = loc_stock.get(pick_loc, 0)
+                        if before_count >= pick_qty:
+                            after_count = before_count - pick_qty
                             db.update_toner_stock(item['id'], pick_loc, -pick_qty)
-                            db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({pick_loc})", "Pick", pick_qty, pick_notes)
+                            db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({pick_loc})", "Pick", pick_qty, pick_notes, before_count, after_count)
                             st.session_state.success_msg = f"✅ Successfully Picked {pick_qty} x {item['toner_model']} from {pick_loc}"
                             st.rerun()
                         else:
@@ -1343,8 +1357,11 @@ def toner_dashboard():
                     toner_model = stow_item.split(" - ")[0]
                     item = next((t for t in toners if t['toner_model'] == toner_model), None)
                     if item:
+                        loc_stock = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
+                        before_count = loc_stock.get(stow_loc, 0)
+                        after_count = before_count + stow_qty
                         db.update_toner_stock(item['id'], stow_loc, stow_qty)
-                        db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({stow_loc})", "Stow", stow_qty, stow_notes)
+                        db.log_activity(st.session_state.logged_in_user, "Toner", item['id'], f"{item['toner_model']} ({stow_loc})", "Stow", stow_qty, stow_notes, before_count, after_count)
                         st.session_state.success_msg = f"✅ Successfully Stowed {stow_qty} x {item['toner_model']} to {stow_loc}"
                         st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1357,7 +1374,14 @@ def toner_dashboard():
         if toner_activities:
             df_act = pd.DataFrame(toner_activities)
             df_act['timestamp'] = pd.to_datetime(df_act['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_act[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'notes']], use_container_width=True, hide_index=True)
+            # Add before/after columns with default 0 if not exist
+            if 'before_count' not in df_act.columns:
+                df_act['before_count'] = 0
+            if 'after_count' not in df_act.columns:
+                df_act['after_count'] = 0
+            df_display = df_act[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count', 'notes']].copy()
+            df_display.columns = ['Time', 'User', 'Item', 'Action', 'Qty', 'Before', 'After', 'Notes']
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
         else:
             st.info("No toner activity history yet. Activities will appear here after pick/stow operations.")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1409,8 +1433,13 @@ def activity_dashboard():
         if filtered:
             df_act = pd.DataFrame(filtered)
             df_act['timestamp'] = pd.to_datetime(df_act['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-            df_display = df_act[['timestamp', 'user_name', 'item_type', 'item_name', 'action_type', 'quantity']]
-            df_display.columns = ['Time', 'User', 'Type', 'Item', 'Action', 'Qty']
+            # Add before/after columns with default 0 if not exist
+            if 'before_count' not in df_act.columns:
+                df_act['before_count'] = 0
+            if 'after_count' not in df_act.columns:
+                df_act['after_count'] = 0
+            df_display = df_act[['timestamp', 'user_name', 'item_type', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']].copy()
+            df_display.columns = ['Time', 'User', 'Type', 'Item', 'Action', 'Qty', 'Before', 'After']
             
             # Export to Excel button
             df_export = df_display.copy()
