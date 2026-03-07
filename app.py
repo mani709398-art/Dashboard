@@ -603,17 +603,55 @@ st.markdown("""
         color: white !important;
     }
     
-    /* Number input styling - white background */
-    .stNumberInput > div > div > input {
-        background: white !important;
-        color: #2d3436 !important;
-        border: 2px solid #e0e0e0;
+    /* Number input styling - DARK background matching selectbox - ALL AREAS */
+    .stNumberInput > div > div > input,
+    .main .stNumberInput > div > div > input,
+    [data-testid="stSidebar"] .stNumberInput > div > div > input,
+    .stNumberInput input[type="number"] {
+        background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border: 2px solid #f39c12 !important;
         border-radius: 8px;
+        font-weight: 700 !important;
+        font-size: 16px !important;
     }
     
-    /* Number input container */
-    .stNumberInput > div > div {
-        background: white !important;
+    /* Number input container - dark background - ALL AREAS */
+    .stNumberInput > div > div,
+    .main .stNumberInput > div > div,
+    [data-testid="stSidebar"] .stNumberInput > div > div {
+        background: #2d3a4a !important;
+        background-color: #2d3a4a !important;
+        border: 2px solid #f39c12 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Number input +/- buttons - ALL AREAS */
+    .stNumberInput button,
+    [data-testid="stSidebar"] .stNumberInput button {
+        background: #2d3a4a !important;
+        color: #ffffff !important;
+        border-color: #f39c12 !important;
+    }
+    
+    /* Sidebar number input label */
+    [data-testid="stSidebar"] .stNumberInput label {
+        color: #ffffff !important;
+    }
+    
+    /* Mobile number input */
+    @media screen and (max-width: 768px) {
+        .stNumberInput input,
+        .stNumberInput > div > div > input,
+        [data-testid="stSidebar"] .stNumberInput input {
+            background: #2d3a4a !important;
+            background-color: #2d3a4a !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: 2px solid #f39c12 !important;
+        }
     }
     
     /* All input containers white */
