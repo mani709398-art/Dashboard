@@ -1,109 +1,128 @@
-# Consumables & Toners Tracking Dashboard
+# IT Inventory Tracking Dashboard
 
-A comprehensive web-based dashboard for tracking consumables and toners inventory with login-wise activity tracking, stock management, and analytics.
+A Streamlit-based dashboard for tracking IT consumables and toners with persistent cloud storage.
 
 ## Features
 
-### 📦 Consumables Dashboard
-- Total items in stock overview
-- Low stock alerts with visual indicators
-- Recent pick/stow activity tracking
-- Item movement history
-- Stock distribution by category (pie chart)
-- Top items by stock (bar chart)
+- 📦 **Consumables Tracking** - Track IT equipment like cables, adapters, peripherals
+- 🖨️ **Toner Management** - Monitor toner inventory across locations
+- 👥 **User Management** - Admin panel for user management with passwords
+- 📊 **Analytics** - Visual charts and statistics
+- 📜 **Activity Log** - Track all pick/stow operations with before/after counts
+- 📥 **Export to Excel** - Download inventory reports
 
-### 🖨️ Toner Dashboard
-- Printer-wise toner availability
-- Location-wise stock (P1 IT Cage, HRV Backside, RF Cage)
-- Remaining toner count with color coding
-- Usage trend visualization
-- Stock by toner color breakdown
+## Persistent Storage Setup (Supabase)
 
-### 📋 Activity Dashboard
-- Who picked/stowed items tracking
-- Timestamp and quantity logging
-- Item type filtering (Consumable/Toner)
-- User-wise transaction summary
-- Daily activity trends (30-day view)
-- Date range search with CSV export
+To ensure your data persists across Streamlit Cloud reboots, you need to set up a free PostgreSQL database using Supabase:
 
-## Tech Stack
+### Step 1: Create a Supabase Account
 
-- **Frontend**: Streamlit
-- **Database**: SQLite
-- **Visualization**: Plotly
-- **Data Processing**: Pandas
+1. Go to [https://supabase.com](https://supabase.com)
+2. Click "Start your project" and sign up (free tier available)
+3. Create a new project (choose a strong password)
 
-## Installation
+### Step 2: Get Your Database URL
 
-1. Clone or download the project files
+1. In your Supabase dashboard, go to **Project Settings** (gear icon)
+2. Click on **Database** in the left sidebar
+3. Scroll down to **Connection string** section
+4. Copy the **URI** connection string (it looks like):
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
+   ```
+5. Replace `[YOUR-PASSWORD]` with the password you set when creating the project
 
-2. Install dependencies:
+### Step 3: Configure Streamlit Cloud Secrets
+
+1. Go to your Streamlit Cloud dashboard
+2. Click on your deployed app
+3. Go to **Settings** → **Secrets**
+4. Add the following secret:
+
+```toml
+DATABASE_URL = "postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres"
+```
+
+5. Click **Save**
+6. Reboot your app
+
+### Step 4: Verify Setup
+
+After rebooting, your app will:
+1. Automatically create all required tables in Supabase
+2. Insert sample data (only if tables are empty)
+3. All future changes will persist across reboots
+
+## Local Development
+
+For local development, the app uses SQLite (no setup required):
+
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd "Ton & Con"
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-3. Initialize the database (optional - auto-initialized on first run):
-```bash
-python database.py
-```
-
-4. Run the application:
-```bash
+# Run the app
 streamlit run app.py
 ```
-
-## Usage
-
-1. **Login**: Select a user from the dropdown in the sidebar and click "Login"
-2. **Navigate**: Use the sidebar radio buttons to switch between dashboards
-3. **Pick/Stow Operations**: 
-   - Login first to enable pick/stow functionality
-   - Select item, enter quantity, and click the appropriate button
-4. **View History**: Use the "Item History" tab to track movements
-5. **Export Data**: Use the Search tab in Activity Dashboard to export CSV reports
-
-## Database Schema
-
-### Users
-- id, username, full_name, department, created_at
-
-### Consumables
-- id, item_name, category, current_stock, min_stock_level, unit, location, last_updated
-
-### Toners
-- id, toner_model, printer_model, color, current_stock, min_stock_level, location, last_updated
-
-### Activity Log
-- id, user_id, item_type, item_id, item_name, action_type, quantity, notes, timestamp
-
-## Sample Data
-
-The application comes pre-loaded with sample data including:
-- 5 sample users (Admin, John Doe, Jane Smith, Mike Wilson, Sarah Jones)
-- 15 consumable items across various categories
-- 15 toner types for different printers
-- 50 sample activity records
 
 ## File Structure
 
 ```
 ├── app.py              # Main Streamlit application
-├── database.py         # Database operations and schema
+├── database.py         # Database module (SQLite/PostgreSQL)
 ├── requirements.txt    # Python dependencies
-├── README.md          # Documentation
-└── tracking_dashboard.db  # SQLite database (auto-created)
+└── README.md          # This file
 ```
 
-## Screenshots
+## Environment Variables
 
-The dashboard includes:
-- Real-time metrics display
-- Interactive charts and graphs
-- Color-coded status indicators (🟢 OK, 🔴 Low)
-- Filterable activity logs
-- Expandable location-wise toner views
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string for Supabase | For production only |
+
+## Default Admin Users
+
+| Username | Full Name | Default Password |
+|----------|-----------|------------------|
+| gmanisel | Maniselvam G | MAA4@123 |
+| saswith | Aswitha S | MAA4@123 |
+| ddink | Dinesh Kumar | MAA4@123 |
+
+## Locations Tracked
+
+- P1 IT Cage
+- HRV Backside
+- RF Cage
+- P3 IT Cage
+
+## Troubleshooting
+
+### Data not persisting after reboot?
+
+1. Check if `DATABASE_URL` is correctly set in Streamlit secrets
+2. Verify the Supabase password is correct (no special characters issues)
+3. Check Streamlit Cloud logs for connection errors
+
+### Connection errors?
+
+1. Ensure your Supabase project is active (free tier pauses after inactivity)
+2. Check if the database password contains special characters (may need URL encoding)
+3. Verify the connection string format
+
+### Tables not created?
+
+The app automatically creates tables on startup. If issues persist:
+1. Check Supabase SQL Editor for any errors
+2. Try running the app locally first to verify the code
+
+## Support
+
+For issues or feature requests, please create an issue in the GitHub repository.
 
 ## License
 
-MIT License - Free to use and modify
+MIT License

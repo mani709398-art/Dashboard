@@ -24,8 +24,8 @@ st.set_page_config(
     }
 )
 
-# Admin users who can add new users
-ADMIN_USERS = ['gmanisel', 'ddink', 'saswith']
+# Note: Admin status is now stored in the database (is_admin column)
+# Initial admins are set in database.py insert_sample_data()
 
 # MDF Style CSS - Dark Navy Theme with White Cards and Orange Accents
 st.markdown("""
@@ -885,12 +885,12 @@ def create_metric_card(label, value, color_class="metric-value-dark", sub_text="
 
 
 def login_section():
-    """User login section with password for admins"""
+    """User login section with password - admin status from database"""
     users = db.get_all_users()
     
     if st.session_state.logged_in_user:
         current_user = db.get_user_by_id(st.session_state.logged_in_user)
-        is_admin = current_user['username'] in ADMIN_USERS
+        is_admin = db.is_user_admin(st.session_state.logged_in_user)
         badge_color = "#f39c12" if is_admin else "#00b894"
         role_text = "Admin" if is_admin else "User"
         st.sidebar.markdown(f"""
@@ -899,35 +899,53 @@ def login_section():
             <div style="font-size: 0.85rem; opacity: 0.9;">@{current_user['username']} | {role_text}</div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Change Password option for ALL logged in users
+        with st.sidebar.expander("🔑 Change My Password"):
+            new_pwd = st.text_input("New Password", type="password", key="my_new_pwd")
+            confirm_pwd = st.text_input("Confirm Password", type="password", key="my_confirm_pwd")
+            if st.button("Update Password", use_container_width=True, key="update_my_pwd"):
+                if new_pwd and confirm_pwd:
+                    if new_pwd == confirm_pwd:
+                        db.update_user_password(st.session_state.logged_in_user, new_pwd)
+                        st.success("✅ Password updated successfully!")
+                    else:
+                        st.error("❌ Passwords don't match!")
+                else:
+                    st.error("Please fill both fields!")
+        
         if st.sidebar.button("🚪 Logout", use_container_width=True):
             st.session_state.logged_in_user = None
             st.rerun()
         
-        # Admin panel
+        # Admin panel - only for admins
         if is_admin:
             with st.sidebar.expander("🔧 Admin Panel"):
-                admin_action = st.radio("Action", ["Add User", "Edit User", "Remove User", "Set Password", "Edit Stock"], label_visibility="collapsed")
+                admin_action = st.radio("Action", ["Add User", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock"], label_visibility="collapsed")
                 
                 if admin_action == "Add User":
                     st.markdown("**➕ Add New User**")
                     new_username = st.text_input("Username", key="new_user")
                     new_fullname = st.text_input("Full Name", key="new_name")
+                    new_is_admin = st.checkbox("Make Admin", key="new_is_admin")
+                    new_password = st.text_input("Password (optional)", type="password", key="new_password")
                     if st.button("Add User", use_container_width=True):
                         if new_username and new_fullname:
                             try:
-                                db.add_user(new_username, new_fullname, 'IT')
+                                db.add_user(new_username, new_fullname, 'IT', new_password, new_is_admin)
                                 st.success("✅ User added!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error: {e}")
+                        else:
+                            st.error("Username and Full Name are required!")
                 
                 elif admin_action == "Edit User":
                     st.markdown("**✏️ Edit User Details**")
-                    user_list = [u for u in users if u['username'] not in ADMIN_USERS]
-                    if user_list:
-                        sel_user = st.selectbox("Select User", [f"{u['full_name']} (@{u['username']})" for u in user_list], key="edit_user_sel")
-                        user_idx = [f"{u['full_name']} (@{u['username']})" for u in user_list].index(sel_user)
-                        selected_user = user_list[user_idx]
+                    if users:
+                        sel_user = st.selectbox("Select User", [f"{u['full_name']} (@{u['username']})" for u in users], key="edit_user_sel")
+                        user_idx = [f"{u['full_name']} (@{u['username']})" for u in users].index(sel_user)
+                        selected_user = users[user_idx]
                         
                         edit_fullname = st.text_input("Full Name", value=selected_user['full_name'], key="edit_fullname")
                         edit_username = st.text_input("Username", value=selected_user['username'], key="edit_username")
@@ -943,17 +961,18 @@ def login_section():
                             else:
                                 st.error("Full Name and Username are required!")
                     else:
-                        st.info("No regular users to edit")
+                        st.info("No users to edit")
                 
                 elif admin_action == "Remove User":
                     st.markdown("**🗑️ Remove User**")
-                    user_list = [u for u in users if u['username'] not in ADMIN_USERS]
+                    # Can't delete yourself
+                    user_list = [u for u in users if u['id'] != st.session_state.logged_in_user]
                     if user_list:
                         sel_user = st.selectbox("Select User", [f"{u['full_name']} (@{u['username']})" for u in user_list], key="remove_user_sel")
                         user_idx = [f"{u['full_name']} (@{u['username']})" for u in user_list].index(sel_user)
                         selected_user = user_list[user_idx]
                         
-                        st.warning(f"⚠️ This will permanently delete the user: **{selected_user['full_name']}**")
+                        st.warning(f"⚠️ This will permanently delete: **{selected_user['full_name']}**")
                         
                         confirm_delete = st.checkbox("I confirm I want to delete this user", key="confirm_delete")
                         
@@ -961,18 +980,40 @@ def login_section():
                             if confirm_delete:
                                 try:
                                     db.delete_user(selected_user['id'])
-                                    st.success(f"✅ User '{selected_user['full_name']}' deleted successfully!")
+                                    st.success(f"✅ User '{selected_user['full_name']}' deleted!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error: {e}")
                             else:
-                                st.error("Please confirm the deletion by checking the checkbox!")
+                                st.error("Please confirm the deletion!")
                     else:
-                        st.info("No regular users to remove")
+                        st.info("No users to remove")
+                
+                elif admin_action == "Manage Admins":
+                    st.markdown("**👑 Manage Admin Access**")
+                    if users:
+                        sel_user = st.selectbox("Select User", [f"{u['full_name']} (@{u['username']}) {'👑' if u.get('is_admin') else ''}" for u in users], key="admin_user_sel")
+                        user_idx = [f"{u['full_name']} (@{u['username']}) {'👑' if u.get('is_admin') else ''}" for u in users].index(sel_user)
+                        selected_user = users[user_idx]
+                        
+                        current_status = bool(selected_user.get('is_admin', False))
+                        st.info(f"Current status: {'👑 Admin' if current_status else '👤 Regular User'}")
+                        
+                        if current_status:
+                            if st.button("🔽 Remove Admin Access", use_container_width=True, type="primary"):
+                                db.update_user_admin_status(selected_user['id'], False)
+                                st.success(f"✅ Admin access removed from {selected_user['full_name']}")
+                                st.rerun()
+                        else:
+                            if st.button("👑 Grant Admin Access", use_container_width=True, type="primary"):
+                                db.update_user_admin_status(selected_user['id'], True)
+                                st.success(f"✅ {selected_user['full_name']} is now an Admin!")
+                                st.rerun()
+                    else:
+                        st.info("No users available")
                 
                 elif admin_action == "Set Password":
                     st.markdown("**🔑 Set User Password**")
-                    # Allow password change for ALL users including admins
                     sel_user = st.selectbox("Select User", [f"{u['full_name']} (@{u['username']})" for u in users], key="pwd_user")
                     new_pwd = st.text_input("New Password", type="password", key="new_pwd")
                     if st.button("Set Password", use_container_width=True):
@@ -1005,8 +1046,8 @@ def login_section():
                         toner_model = sel_item.split(" - ")[0]
                         item = next((t for t in toners if t['toner_model'] == toner_model), None)
                         if item:
-                            loc_map = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage']}
-                            new_qty = st.number_input(f"New Qty (Current: {loc_map[sel_loc]})", min_value=0, value=loc_map[sel_loc], key="edit_ton_qty")
+                            loc_map = {"P1 IT Cage": item['p1_it_cage'], "HRV Backside": item['hrv_backside'], "RF Cage": item['rf_cage'], "P3 IT Cage": item.get('p3_it_cage', 0)}
+                            new_qty = st.number_input(f"New Qty (Current: {loc_map.get(sel_loc, 0)})", min_value=0, value=loc_map.get(sel_loc, 0), key="edit_ton_qty")
                             if st.button("Update Stock", use_container_width=True, key="upd_ton"):
                                 db.set_toner_stock(item['id'], sel_loc, new_qty)
                                 st.success(f"✅ Updated {toner_model} at {sel_loc} to {new_qty}")
@@ -1014,24 +1055,27 @@ def login_section():
     else:
         st.sidebar.markdown("### 👤 Login")
         
-        # Separate admin and regular users
-        admin_users_list = [u for u in users if u['username'] in ADMIN_USERS]
-        regular_users_list = [u for u in users if u['username'] not in ADMIN_USERS]
+        # Separate admin and regular users based on is_admin field
+        admin_users_list = [u for u in users if u.get('is_admin')]
+        regular_users_list = [u for u in users if not u.get('is_admin')]
         
         login_type = st.sidebar.radio("Login As", ["Admin", "User"], horizontal=True, label_visibility="collapsed")
         
         if login_type == "Admin":
             st.sidebar.markdown("**🔐 Admin Login**")
-            admin_select = st.sidebar.selectbox("Admin User", [f"{u['full_name']} (@{u['username']})" for u in admin_users_list], label_visibility="collapsed")
-            admin_pwd = st.sidebar.text_input("Password", type="password", key="admin_pwd")
-            if st.sidebar.button("🔐 Login", type="primary", use_container_width=True):
-                admin_idx = [f"{u['full_name']} (@{u['username']})" for u in admin_users_list].index(admin_select)
-                user = admin_users_list[admin_idx]
-                if user['password'] == admin_pwd:
-                    st.session_state.logged_in_user = user['id']
-                    st.rerun()
-                else:
-                    st.sidebar.error("❌ Invalid password!")
+            if admin_users_list:
+                admin_select = st.sidebar.selectbox("Admin User", [f"{u['full_name']} (@{u['username']})" for u in admin_users_list], label_visibility="collapsed")
+                admin_pwd = st.sidebar.text_input("Password", type="password", key="admin_pwd")
+                if st.sidebar.button("🔐 Login", type="primary", use_container_width=True):
+                    admin_idx = [f"{u['full_name']} (@{u['username']})" for u in admin_users_list].index(admin_select)
+                    user = admin_users_list[admin_idx]
+                    if user['password'] == admin_pwd:
+                        st.session_state.logged_in_user = user['id']
+                        st.rerun()
+                    else:
+                        st.sidebar.error("❌ Invalid password!")
+            else:
+                st.sidebar.info("No admin users configured")
         else:
             st.sidebar.markdown("**👤 User Login**")
             if regular_users_list:

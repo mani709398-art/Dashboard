@@ -1,377 +1,531 @@
-"""Database module for Consumables & Toners Tracking"""
+ """Database module for Consumables & Toners Tracking
+Supports both SQLite (local) and PostgreSQL (Supabase for production)
+"""
 
-import sqlite3
+import os
 from datetime import datetime
+
+# Try to import Streamlit for secrets, fallback to environment variables
+try:
+    import streamlit as st
+    USE_STREAMLIT = True
+except ImportError:
+    USE_STREAMLIT = False
+
+# Determine if we're using PostgreSQL (production) or SQLite (local)
+def get_database_url():
+    """Get database URL from Streamlit secrets or environment"""
+    if USE_STREAMLIT:
+        try:
+            return st.secrets.get("DATABASE_URL", None)
+        except:
+            pass
+    return os.environ.get("DATABASE_URL", None)
+
+DATABASE_URL = get_database_url()
+USE_POSTGRES = DATABASE_URL is not None
+
+if USE_POSTGRES:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+else:
+    import sqlite3
 
 DATABASE = 'tracking_dashboard.db'
 
 
 def get_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Get database connection based on environment"""
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    else:
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+
+def execute_query(query, params=None, fetch=False, fetch_one=False):
+    """Execute a query with proper handling for both database types"""
+    conn = get_connection()
+    
+    if USE_POSTGRES:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        # Convert SQLite-style ? placeholders to PostgreSQL %s
+        query = query.replace('?', '%s')
+    else:
+        cursor = conn.cursor()
+    
+    try:
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        if fetch_one:
+            result = cursor.fetchone()
+            if USE_POSTGRES:
+                return dict(result) if result else None
+            else:
+                return dict(result) if result else None
+        elif fetch:
+            results = cursor.fetchall()
+            if USE_POSTGRES:
+                return [dict(row) for row in results]
+            else:
+                return [dict(row) for row in results]
+        else:
+            conn.commit()
+            return cursor.lastrowid if not USE_POSTGRES else None
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def init_database():
+    """Initialize all database tables"""
     create_users_table()
     create_consumables_table()
     create_toners_table()
     create_activities_table()
-    # Add p3_it_cage column if it doesn't exist
-    add_p3_it_cage_column()
-    # Add before/after count columns if they don't exist
-    add_activity_count_columns()
+    # Add columns if they don't exist (for existing databases)
+    add_missing_columns()
 
 
 def create_users_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        full_name TEXT NOT NULL,
-        password TEXT DEFAULT '',
-        department TEXT DEFAULT 'IT',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.commit()
-    conn.close()
+    """Create users table"""
+    if USE_POSTGRES:
+        query = '''CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            full_name TEXT NOT NULL,
+            password TEXT DEFAULT '',
+            department TEXT DEFAULT 'IT',
+            is_admin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    else:
+        query = '''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            full_name TEXT NOT NULL,
+            password TEXT DEFAULT '',
+            department TEXT DEFAULT 'IT',
+            is_admin INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    execute_query(query)
 
 
 def create_consumables_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS consumables (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        p1_it_cage INTEGER DEFAULT 0,
-        hrv_backside INTEGER DEFAULT 0,
-        rf_cage INTEGER DEFAULT 0,
-        p3_it_cage INTEGER DEFAULT 0,
-        min_stock_level INTEGER DEFAULT 5,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.commit()
-    conn.close()
+    """Create consumables table"""
+    if USE_POSTGRES:
+        query = '''CREATE TABLE IF NOT EXISTS consumables (
+            id SERIAL PRIMARY KEY,
+            item_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            p1_it_cage INTEGER DEFAULT 0,
+            hrv_backside INTEGER DEFAULT 0,
+            rf_cage INTEGER DEFAULT 0,
+            p3_it_cage INTEGER DEFAULT 0,
+            min_stock_level INTEGER DEFAULT 5,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    else:
+        query = '''CREATE TABLE IF NOT EXISTS consumables (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            p1_it_cage INTEGER DEFAULT 0,
+            hrv_backside INTEGER DEFAULT 0,
+            rf_cage INTEGER DEFAULT 0,
+            p3_it_cage INTEGER DEFAULT 0,
+            min_stock_level INTEGER DEFAULT 5,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    execute_query(query)
 
 
 def create_toners_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS toners (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        printer_model TEXT NOT NULL,
-        printer_count INTEGER DEFAULT 0,
-        toner_model TEXT NOT NULL,
-        color TEXT DEFAULT 'Black',
-        p1_it_cage INTEGER DEFAULT 0,
-        hrv_backside INTEGER DEFAULT 0,
-        rf_cage INTEGER DEFAULT 0,
-        p3_it_cage INTEGER DEFAULT 0,
-        min_stock_level INTEGER DEFAULT 2,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.commit()
-    conn.close()
-
-
-def add_p3_it_cage_column():
-    """Add p3_it_cage column to existing tables if not exists"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # Check if p3_it_cage exists in consumables
-    cursor.execute("PRAGMA table_info(consumables)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'p3_it_cage' not in columns:
-        cursor.execute('ALTER TABLE consumables ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
-    
-    # Check if p3_it_cage exists in toners
-    cursor.execute("PRAGMA table_info(toners)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'p3_it_cage' not in columns:
-        cursor.execute('ALTER TABLE toners ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
-    
-    conn.commit()
-    conn.close()
+    """Create toners table"""
+    if USE_POSTGRES:
+        query = '''CREATE TABLE IF NOT EXISTS toners (
+            id SERIAL PRIMARY KEY,
+            printer_model TEXT NOT NULL,
+            printer_count INTEGER DEFAULT 0,
+            toner_model TEXT NOT NULL,
+            color TEXT DEFAULT 'Black',
+            p1_it_cage INTEGER DEFAULT 0,
+            hrv_backside INTEGER DEFAULT 0,
+            rf_cage INTEGER DEFAULT 0,
+            p3_it_cage INTEGER DEFAULT 0,
+            min_stock_level INTEGER DEFAULT 2,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    else:
+        query = '''CREATE TABLE IF NOT EXISTS toners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            printer_model TEXT NOT NULL,
+            printer_count INTEGER DEFAULT 0,
+            toner_model TEXT NOT NULL,
+            color TEXT DEFAULT 'Black',
+            p1_it_cage INTEGER DEFAULT 0,
+            hrv_backside INTEGER DEFAULT 0,
+            rf_cage INTEGER DEFAULT 0,
+            p3_it_cage INTEGER DEFAULT 0,
+            min_stock_level INTEGER DEFAULT 2,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )'''
+    execute_query(query)
 
 
 def create_activities_table():
+    """Create activities table"""
+    if USE_POSTGRES:
+        query = '''CREATE TABLE IF NOT EXISTS activities (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            item_type TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
+            item_name TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            before_count INTEGER DEFAULT 0,
+            after_count INTEGER DEFAULT 0,
+            notes TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )'''
+    else:
+        query = '''CREATE TABLE IF NOT EXISTS activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            item_type TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
+            item_name TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            before_count INTEGER DEFAULT 0,
+            after_count INTEGER DEFAULT 0,
+            notes TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )'''
+    execute_query(query)
+
+
+def add_missing_columns():
+    """Add missing columns to existing tables (migration support)"""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS activities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        item_type TEXT NOT NULL,
-        item_id INTEGER NOT NULL,
-        item_name TEXT NOT NULL,
-        action_type TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        before_count INTEGER DEFAULT 0,
-        after_count INTEGER DEFAULT 0,
-        notes TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )''')
-    conn.commit()
-    conn.close()
+    
+    if USE_POSTGRES:
+        cursor = conn.cursor()
+        # PostgreSQL way to add columns if not exists
+        try:
+            cursor.execute("ALTER TABLE consumables ADD COLUMN IF NOT EXISTS p3_it_cage INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE toners ADD COLUMN IF NOT EXISTS p3_it_cage INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE activities ADD COLUMN IF NOT EXISTS before_count INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE activities ADD COLUMN IF NOT EXISTS after_count INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
+    else:
+        cursor = conn.cursor()
+        # SQLite way - check if columns exist first
+        try:
+            cursor.execute("PRAGMA table_info(consumables)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'p3_it_cage' not in columns:
+                cursor.execute('ALTER TABLE consumables ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
+            
+            cursor.execute("PRAGMA table_info(toners)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'p3_it_cage' not in columns:
+                cursor.execute('ALTER TABLE toners ADD COLUMN p3_it_cage INTEGER DEFAULT 0')
+            
+            cursor.execute("PRAGMA table_info(activities)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'before_count' not in columns:
+                cursor.execute('ALTER TABLE activities ADD COLUMN before_count INTEGER DEFAULT 0')
+            if 'after_count' not in columns:
+                cursor.execute('ALTER TABLE activities ADD COLUMN after_count INTEGER DEFAULT 0')
+            
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'is_admin' not in columns:
+                cursor.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0')
+            
+            conn.commit()
+        except Exception as e:
+            pass
+        finally:
+            cursor.close()
+            conn.close()
 
 
-def add_activity_count_columns():
-    """Add before_count and after_count columns to existing activities table if not exists"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(activities)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'before_count' not in columns:
-        cursor.execute('ALTER TABLE activities ADD COLUMN before_count INTEGER DEFAULT 0')
-    if 'after_count' not in columns:
-        cursor.execute('ALTER TABLE activities ADD COLUMN after_count INTEGER DEFAULT 0')
-    conn.commit()
-    conn.close()
+# ==================== USER FUNCTIONS ====================
+
+def add_user(username, full_name, department='IT', password='', is_admin=False):
+    """Add a new user"""
+    admin_val = 1 if is_admin else 0
+    if USE_POSTGRES:
+        admin_val = is_admin
+    query = 'INSERT INTO users (username, full_name, department, password, is_admin) VALUES (?, ?, ?, ?, ?)'
+    execute_query(query, (username, full_name, department, password, admin_val))
 
 
-def add_user(username, full_name, department='IT', password=''):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO users (username, full_name, department, password) VALUES (?, ?, ?, ?)',
-                   (username, full_name, department, password))
-    conn.commit()
-    conn.close()
+def update_user_admin_status(user_id, is_admin):
+    """Update user admin status"""
+    admin_val = 1 if is_admin else 0
+    if USE_POSTGRES:
+        admin_val = is_admin
+    query = 'UPDATE users SET is_admin = ? WHERE id = ?'
+    execute_query(query, (admin_val, user_id))
+
+
+def is_user_admin(user_id):
+    """Check if user is admin"""
+    user = get_user_by_id(user_id)
+    if user:
+        return bool(user.get('is_admin', False))
+    return False
 
 
 def update_user_password(user_id, password):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE users SET password = ? WHERE id = ?', (password, user_id))
-    conn.commit()
-    conn.close()
+    """Update user password"""
+    query = 'UPDATE users SET password = ? WHERE id = ?'
+    execute_query(query, (password, user_id))
 
 
 def update_user_details(user_id, full_name, username, department):
     """Update user details"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE users SET full_name = ?, username = ?, department = ? WHERE id = ?', 
-                   (full_name, username, department, user_id))
-    conn.commit()
-    conn.close()
+    query = 'UPDATE users SET full_name = ?, username = ?, department = ? WHERE id = ?'
+    execute_query(query, (full_name, username, department, user_id))
 
 
 def delete_user(user_id):
     """Delete a user from the database"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
-    conn.commit()
-    conn.close()
+    query = 'DELETE FROM users WHERE id = ?'
+    execute_query(query, (user_id,))
 
 
 def verify_user_password(username, password):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
-    user = cursor.fetchone()
-    conn.close()
-    return dict(user) if user else None
-
-
-def set_consumable_stock(item_id, location, new_value):
-    conn = get_connection()
-    cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-    col = loc_col.get(location, 'p1_it_cage')
-    cursor.execute(f'UPDATE consumables SET {col} = ? WHERE id = ?', (new_value, item_id))
-    conn.commit()
-    conn.close()
-
-
-def set_toner_stock(item_id, location, new_value):
-    conn = get_connection()
-    cursor = conn.cursor()
-    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-    col = loc_col.get(location, 'p1_it_cage')
-    cursor.execute(f'UPDATE toners SET {col} = ? WHERE id = ?', (new_value, item_id))
-    conn.commit()
-    conn.close()
+    """Verify user password"""
+    query = 'SELECT * FROM users WHERE username = ? AND password = ?'
+    return execute_query(query, (username, password), fetch_one=True)
 
 
 def get_all_users():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users ORDER BY full_name')
-    users = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return users
+    """Get all users"""
+    query = 'SELECT * FROM users ORDER BY full_name'
+    return execute_query(query, fetch=True)
 
 
 def get_user_by_id(user_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
-    user = cursor.fetchone()
-    conn.close()
-    return dict(user) if user else None
+    """Get user by ID"""
+    query = 'SELECT * FROM users WHERE id = ?'
+    return execute_query(query, (user_id,), fetch_one=True)
 
+
+# ==================== CONSUMABLES FUNCTIONS ====================
 
 def add_consumable(item_name, category, p1_it_cage=0, hrv_backside=0, rf_cage=0, p3_it_cage=0, min_stock_level=5):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                   (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
-    conn.commit()
-    conn.close()
+    """Add a new consumable item"""
+    query = '''INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) 
+               VALUES (?, ?, ?, ?, ?, ?, ?)'''
+    execute_query(query, (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
 
 
 def get_all_consumables():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM consumables ORDER BY category, item_name')
-    consumables = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return consumables
+    """Get all consumables with total stock"""
+    query = '''SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock 
+               FROM consumables ORDER BY category, item_name'''
+    return execute_query(query, fetch=True)
 
 
 def update_consumable_stock(item_id, location, quantity_change):
-    conn = get_connection()
-    cursor = conn.cursor()
+    """Update consumable stock at a location"""
     loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
-    cursor.execute(f'UPDATE consumables SET {col} = {col} + ? WHERE id = ?', (quantity_change, item_id))
-    conn.commit()
-    conn.close()
+    query = f'UPDATE consumables SET {col} = {col} + ? WHERE id = ?'
+    execute_query(query, (quantity_change, item_id))
+
+
+def set_consumable_stock(item_id, location, new_value):
+    """Set consumable stock to a specific value"""
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
+    col = loc_col.get(location, 'p1_it_cage')
+    query = f'UPDATE consumables SET {col} = ? WHERE id = ?'
+    execute_query(query, (new_value, item_id))
 
 
 def get_low_stock_consumables():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
-    consumables = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return consumables
+    """Get consumables with low stock"""
+    query = '''SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock 
+               FROM consumables 
+               WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
+    return execute_query(query, fetch=True)
 
 
 def get_consumable_stats():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage, COALESCE(SUM(p3_it_cage), 0) as p3_it_cage, COUNT(DISTINCT category) as categories FROM consumables')
-    stats = dict(cursor.fetchone())
-    cursor.execute('SELECT COUNT(*) as low_stock FROM consumables WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
-    stats['low_stock_count'] = cursor.fetchone()['low_stock']
-    conn.close()
+    """Get consumable statistics"""
+    query = '''SELECT 
+                COUNT(*) as total_items, 
+                COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, 
+                COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, 
+                COALESCE(SUM(hrv_backside), 0) as hrv_backside, 
+                COALESCE(SUM(rf_cage), 0) as rf_cage, 
+                COALESCE(SUM(p3_it_cage), 0) as p3_it_cage, 
+                COUNT(DISTINCT category) as categories 
+               FROM consumables'''
+    stats = execute_query(query, fetch_one=True)
+    
+    low_query = '''SELECT COUNT(*) as low_stock FROM consumables 
+                   WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
+    low_result = execute_query(low_query, fetch_one=True)
+    stats['low_stock_count'] = low_result['low_stock'] if low_result else 0
+    
     return stats
 
 
+# ==================== TONER FUNCTIONS ====================
+
 def add_toner(printer_model, printer_count, toner_model, color, p1_it_cage=0, hrv_backside=0, rf_cage=0, p3_it_cage=0, min_stock_level=2):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                   (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
-    conn.commit()
-    conn.close()
+    """Add a new toner"""
+    query = '''INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    execute_query(query, (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level))
 
 
 def get_all_toners():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM toners ORDER BY printer_model')
-    toners = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return toners
+    """Get all toners with total stock"""
+    query = '''SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock 
+               FROM toners ORDER BY printer_model'''
+    return execute_query(query, fetch=True)
 
 
 def update_toner_stock(item_id, location, quantity_change):
-    conn = get_connection()
-    cursor = conn.cursor()
+    """Update toner stock at a location"""
     loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_col.get(location, 'p1_it_cage')
-    cursor.execute(f'UPDATE toners SET {col} = {col} + ? WHERE id = ?', (quantity_change, item_id))
-    conn.commit()
-    conn.close()
+    query = f'UPDATE toners SET {col} = {col} + ? WHERE id = ?'
+    execute_query(query, (quantity_change, item_id))
+
+
+def set_toner_stock(item_id, location, new_value):
+    """Set toner stock to a specific value"""
+    loc_col = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
+    col = loc_col.get(location, 'p1_it_cage')
+    query = f'UPDATE toners SET {col} = ? WHERE id = ?'
+    execute_query(query, (new_value, item_id))
 
 
 def get_low_stock_toners():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
-    toners = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return toners
+    """Get toners with low stock"""
+    query = '''SELECT *, (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) as total_stock 
+               FROM toners 
+               WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
+    return execute_query(query, fetch=True)
 
 
 def get_toner_stats():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) as total_items, COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, COALESCE(SUM(hrv_backside), 0) as hrv_backside, COALESCE(SUM(rf_cage), 0) as rf_cage, COALESCE(SUM(p3_it_cage), 0) as p3_it_cage FROM toners')
-    stats = dict(cursor.fetchone())
-    cursor.execute('SELECT COUNT(*) as low_stock FROM toners WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level')
-    stats['low_stock_count'] = cursor.fetchone()['low_stock']
-    conn.close()
+    """Get toner statistics"""
+    query = '''SELECT 
+                COUNT(*) as total_items, 
+                COALESCE(SUM(p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)), 0) as total_stock, 
+                COALESCE(SUM(p1_it_cage), 0) as p1_it_cage, 
+                COALESCE(SUM(hrv_backside), 0) as hrv_backside, 
+                COALESCE(SUM(rf_cage), 0) as rf_cage, 
+                COALESCE(SUM(p3_it_cage), 0) as p3_it_cage 
+               FROM toners'''
+    stats = execute_query(query, fetch_one=True)
+    
+    low_query = '''SELECT COUNT(*) as low_stock FROM toners 
+                   WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
+    low_result = execute_query(low_query, fetch_one=True)
+    stats['low_stock_count'] = low_result['low_stock'] if low_result else 0
+    
     return stats
 
 
+# ==================== ACTIVITY FUNCTIONS ====================
+
 def log_activity(user_id, item_type, item_id, item_name, action_type, quantity, notes='', before_count=0, after_count=0):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO activities (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                   (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes))
-    conn.commit()
-    conn.close()
+    """Log an activity"""
+    query = '''INSERT INTO activities (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    execute_query(query, (user_id, item_type, item_id, item_name, action_type, quantity, before_count, after_count, notes))
 
 
 def get_recent_activities(limit=50):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT a.*, u.full_name as user_name FROM activities a LEFT JOIN users u ON a.user_id = u.id ORDER BY a.timestamp DESC LIMIT ?', (limit,))
-    activities = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return activities
+    """Get recent activities"""
+    query = '''SELECT a.*, u.full_name as user_name 
+               FROM activities a 
+               LEFT JOIN users u ON a.user_id = u.id 
+               ORDER BY a.timestamp DESC 
+               LIMIT ?'''
+    return execute_query(query, (limit,), fetch=True)
 
 
 def get_activities_by_item(item_type, item_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT a.*, u.full_name as user_name FROM activities a LEFT JOIN users u ON a.user_id = u.id WHERE a.item_type = ? AND a.item_id = ? ORDER BY a.timestamp DESC', (item_type, item_id))
-    activities = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return activities
+    """Get activities for a specific item"""
+    query = '''SELECT a.*, u.full_name as user_name 
+               FROM activities a 
+               LEFT JOIN users u ON a.user_id = u.id 
+               WHERE a.item_type = ? AND a.item_id = ? 
+               ORDER BY a.timestamp DESC'''
+    return execute_query(query, (item_type, item_id), fetch=True)
 
 
 def get_user_activity_summary():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT u.full_name, u.department, COUNT(a.id) as total_activities, SUM(CASE WHEN a.action_type = "Pick" THEN 1 ELSE 0 END) as total_picks, SUM(CASE WHEN a.action_type = "Stow" THEN 1 ELSE 0 END) as total_stows FROM users u LEFT JOIN activities a ON u.id = a.user_id GROUP BY u.id ORDER BY total_activities DESC')
-    summary = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return summary
+    """Get user activity summary"""
+    query = '''SELECT u.full_name, u.department, 
+                COUNT(a.id) as total_activities, 
+                SUM(CASE WHEN a.action_type = 'Pick' THEN 1 ELSE 0 END) as total_picks, 
+                SUM(CASE WHEN a.action_type = 'Stow' THEN 1 ELSE 0 END) as total_stows 
+               FROM users u 
+               LEFT JOIN activities a ON u.id = a.user_id 
+               GROUP BY u.id 
+               ORDER BY total_activities DESC'''
+    return execute_query(query, fetch=True)
 
+
+# ==================== SAMPLE DATA ====================
 
 def insert_sample_data():
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT COUNT(*) as count FROM users')
-    if cursor.fetchone()['count'] == 0:
+    """Insert sample data if tables are empty"""
+    # Check if users exist
+    users = get_all_users()
+    if not users or len(users) == 0:
+        # Admin users with is_admin=True
         admin_users = [
-            ('gmanisel', 'Maniselvam G', 'IT', 'MAA4@123'),
-            ('saswith', 'Aswitha S', 'IT', 'MAA4@123'),
-            ('ddink', 'Dinesh Kumar', 'IT', 'MAA4@123'),
+            ('gmanisel', 'Maniselvam G', 'IT', 'MAA4@123', True),
+            ('saswith', 'Aswitha S', 'IT', 'MAA4@123', True),
+            ('ddink', 'Dinesh Kumar', 'IT', 'MAA4@123', True),
         ]
+        # Regular users with is_admin=False
         regular_users = [
-            ('raghumun', 'Munusamy R', 'IT', ''),
-            ('Gksanjay', 'Sanjay', 'IT', ''),
-            ('Sriajayk', 'Ajay', 'IT', ''),
-            ('sababuka', 'Sathish B', 'IT', ''),
-            ('ilayaram', 'Ilayabharathi P', 'IT', ''),
-            ('Karthik', 'parumk', 'IT', '')
+            ('raghumun', 'Munusamy R', 'IT', '', False),
+            ('Gksanjay', 'Sanjay', 'IT', '', False),
+            ('Sriajayk', 'Ajay', 'IT', '', False),
+            ('sababuka', 'Sathish B', 'IT', '', False),
+            ('ilayaram', 'Ilayabharathi P', 'IT', '', False),
+            ('Karthik', 'parumk', 'IT', '', False)
         ]
         for user in admin_users + regular_users:
-            cursor.execute('INSERT INTO users (username, full_name, department, password) VALUES (?, ?, ?, ?)', user)
+            try:
+                add_user(user[0], user[1], user[2], user[3], user[4])
+            except Exception as e:
+                pass  # User might already exist
     
-    cursor.execute('SELECT COUNT(*) as count FROM consumables')
-    if cursor.fetchone()['count'] == 0:
-        consumables = [
+    # Check if consumables exist
+    consumables = get_all_consumables()
+    if not consumables or len(consumables) == 0:
+        consumables_data = [
             ('Walkie Talkie Adaptor', 'Adapters', 5, 0, 0, 0, 2),
             ('Bluetooth Scanner', 'Scanners', 6, 0, 0, 0, 3),
             ('DP Cable', 'Cables', 166, 0, 0, 0, 20),
@@ -402,12 +556,16 @@ def insert_sample_data():
             ('HDMI to VGA', 'Adapters', 3, 0, 0, 0, 2),
             ('DP to VGA', 'Adapters', 6, 0, 0, 0, 3)
         ]
-        for item in consumables:
-            cursor.execute('INSERT INTO consumables (item_name, category, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)', item)
+        for item in consumables_data:
+            try:
+                add_consumable(item[0], item[1], item[2], item[3], item[4], item[5], item[6])
+            except Exception as e:
+                pass
     
-    cursor.execute('SELECT COUNT(*) as count FROM toners')
-    if cursor.fetchone()['count'] == 0:
-        toners = [
+    # Check if toners exist
+    toners = get_all_toners()
+    if not toners or len(toners) == 0:
+        toners_data = [
             ('LaserJet Pro MFP M521dn', 5, 'CE255XC', 'Black', 3, 0, 4, 0, 2),
             ('LaserJet M608', 6, 'CF237YC', 'Black', 0, 13, 0, 0, 3),
             ('LaserJet flow MFP M830', 2, 'CF325XC', 'Black', 5, 12, 0, 0, 3),
@@ -420,8 +578,8 @@ def insert_sample_data():
             ('LaserJet 700 color MFP M775', 2, 'CE343AC - M', 'Magenta', 6, 5, 4, 0, 2),
             ('LaserJet Enterprise M611dn', 3, 'W1470YC', 'Black', 2, 4, 4, 0, 2)
         ]
-        for item in toners:
-            cursor.execute('INSERT INTO toners (printer_model, printer_count, toner_model, color, p1_it_cage, hrv_backside, rf_cage, p3_it_cage, min_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', item)
-    
-    conn.commit()
-    conn.close()
+        for item in toners_data:
+            try:
+                add_toner(item[0], item[1], item[2], item[3], item[4], item[5], item[6], item[7], item[8])
+            except Exception as e:
+                pass
