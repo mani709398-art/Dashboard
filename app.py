@@ -814,85 +814,60 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize database (only once)
-if 'db_initialized' not in st.session_state:
-    db.init_database()
-    db.insert_sample_data()
-    st.session_state.db_initialized = True
-
-# Session state
+# Session state initialization
 if 'logged_in_user' not in st.session_state:
     st.session_state.logged_in_user = None
 if 'success_msg' not in st.session_state:
     st.session_state.success_msg = None
 if 'theme' not in st.session_state:
     st.session_state.theme = 'dark'
-if 'data_refresh' not in st.session_state:
-    st.session_state.data_refresh = 0
 
+# AGGRESSIVE CACHING - Load all data ONCE at startup
+@st.cache_data(ttl=300, show_spinner="Loading data...")
+def load_all_data():
+    """Load all data from database once and cache for 5 minutes"""
+    db.init_database()
+    db.insert_sample_data()
+    return {
+        'users': db.get_all_users(),
+        'consumables': db.get_all_consumables(),
+        'toners': db.get_all_toners(),
+        'cons_stats': db.get_consumable_stats(),
+        'ton_stats': db.get_toner_stats(),
+        'activities': db.get_recent_activities(100)
+    }
 
-# Cached data functions - use session state to minimize database calls
+# Load data once
+ALL_DATA = load_all_data()
+
 def get_cached_users():
-    """Get users with session caching"""
-    if 'cached_users' not in st.session_state or st.session_state.get('refresh_users', True):
-        st.session_state.cached_users = db.get_all_users()
-        st.session_state.refresh_users = False
-    return st.session_state.cached_users
-
+    return ALL_DATA['users']
 
 def get_cached_consumables():
-    """Get consumables with session caching"""
-    if 'cached_consumables' not in st.session_state or st.session_state.get('refresh_consumables', True):
-        st.session_state.cached_consumables = db.get_all_consumables()
-        st.session_state.refresh_consumables = False
-    return st.session_state.cached_consumables
-
+    return ALL_DATA['consumables']
 
 def get_cached_toners():
-    """Get toners with session caching"""
-    if 'cached_toners' not in st.session_state or st.session_state.get('refresh_toners', True):
-        st.session_state.cached_toners = db.get_all_toners()
-        st.session_state.refresh_toners = False
-    return st.session_state.cached_toners
-
+    return ALL_DATA['toners']
 
 def get_cached_consumable_stats():
-    """Get consumable stats with session caching"""
-    if 'cached_cons_stats' not in st.session_state or st.session_state.get('refresh_consumables', True):
-        st.session_state.cached_cons_stats = db.get_consumable_stats()
-    return st.session_state.cached_cons_stats
-
+    return ALL_DATA['cons_stats']
 
 def get_cached_toner_stats():
-    """Get toner stats with session caching"""
-    if 'cached_ton_stats' not in st.session_state or st.session_state.get('refresh_toners', True):
-        st.session_state.cached_ton_stats = db.get_toner_stats()
-    return st.session_state.cached_ton_stats
+    return ALL_DATA['ton_stats']
 
+def get_cached_activities():
+    return ALL_DATA['activities']
 
 def get_cached_user_by_id(user_id):
-    """Get user by ID from cache"""
-    users = get_cached_users()
-    return next((u for u in users if u['id'] == user_id), None)
-
+    return next((u for u in ALL_DATA['users'] if u['id'] == user_id), None)
 
 def is_cached_user_admin(user_id):
-    """Check if user is admin from cache"""
     user = get_cached_user_by_id(user_id)
-    if user:
-        return bool(user.get('is_admin', False))
-    return False
-
+    return bool(user.get('is_admin', False)) if user else False
 
 def refresh_all_data():
-    """Force refresh all cached data"""
-    st.session_state.refresh_users = True
-    st.session_state.refresh_consumables = True
-    st.session_state.refresh_toners = True
-    # Clear cached data
-    for key in ['cached_users', 'cached_consumables', 'cached_toners', 'cached_cons_stats', 'cached_ton_stats']:
-        if key in st.session_state:
-            del st.session_state[key]
+    """Clear cache to force reload"""
+    st.cache_data.clear()
 
 # Show success message as toast notification
 if st.session_state.success_msg:
@@ -989,7 +964,7 @@ def login_section():
         # Admin panel - only for admins
         if is_admin:
             with st.sidebar.expander("🔧 Admin Panel"):
-                admin_action = st.radio("Action", ["Add User", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock"], label_visibility="collapsed")
+                admin_action = st.radio("Action", ["Add User", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock", "Reset Data"], label_visibility="collapsed")
                 
                 if admin_action == "Add User":
                     st.markdown("**➕ Add New User**")
@@ -1093,7 +1068,7 @@ def login_section():
                             st.error("Please enter a password!")
                 
                 elif admin_action == "Edit Stock":
-                    st.markdown("**📦 Edit Inventory**")
+                    st.markdown("**� Edit Inventory**")
                     item_type = st.radio("Type", ["Consumable", "Toner"], key="edit_type", horizontal=True)
                     if item_type == "Consumable":
                         consumables = db.get_all_consumables()
@@ -1120,6 +1095,23 @@ def login_section():
                                 db.set_toner_stock(item['id'], sel_loc, new_qty)
                                 st.success(f"✅ Updated {toner_model} at {sel_loc} to {new_qty}")
                                 st.rerun()
+                
+                elif admin_action == "Reset Data":
+                    st.markdown("**🔄 Reset All Data**")
+                    st.warning("⚠️ This will DELETE all existing data and reload fresh sample data!")
+                    st.info("Use this if consumables/toners are missing or data is corrupted.")
+                    confirm_reset = st.checkbox("I understand this will delete ALL data", key="confirm_reset")
+                    if st.button("🔄 Reset All Data", use_container_width=True, type="primary"):
+                        if confirm_reset:
+                            try:
+                                db.insert_sample_data(force=True)
+                                st.cache_data.clear()
+                                st.success("✅ Data reset successfully! Reloading...")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+                        else:
+                            st.error("Please confirm the reset!")
     else:
         st.sidebar.markdown("### 👤 Login")
         
@@ -1183,9 +1175,11 @@ def consumables_dashboard():
         </div>
         """, unsafe_allow_html=True)
     
-    stats = db.get_consumable_stats()
-    consumables = db.get_all_consumables()
-    low_stock = db.get_low_stock_consumables()
+    # Use cached data
+    stats = get_cached_consumable_stats()
+    consumables = get_cached_consumables()
+    # Calculate low stock from cached data
+    low_stock = [c for c in consumables if c['total_stock'] <= c['min_stock_level']]
     
     # Metric cards
     col1, col2, col3, col4 = st.columns(4)
@@ -1347,9 +1341,10 @@ def toner_dashboard():
         </div>
         """, unsafe_allow_html=True)
     
-    stats = db.get_toner_stats()
-    toners = db.get_all_toners()
-    low_stock = db.get_low_stock_toners()
+    # Use cached data
+    stats = get_cached_toner_stats()
+    toners = get_cached_toners()
+    low_stock = [t for t in toners if t['total_stock'] <= t['min_stock_level']]
     
     # Metrics
     col1, col2, col3 = st.columns(3)
@@ -1513,8 +1508,9 @@ def activity_dashboard():
         </div>
         """, unsafe_allow_html=True)
     
-    activities = db.get_recent_activities(100)
-    users = db.get_all_users()
+    # Use cached data
+    activities = get_cached_activities()
+    users = get_cached_users()
     
     total = len(activities)
     picks = sum(1 for a in activities if a['action_type'] == 'Pick')

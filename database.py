@@ -517,10 +517,29 @@ def get_user_activity_summary():
 
 # ==================== SAMPLE DATA ====================
 
-def insert_sample_data():
-    """Insert sample data if tables are empty"""
+def clear_all_data():
+    """Clear all data from tables (for reset)"""
+    execute_query('DELETE FROM activities')
+    execute_query('DELETE FROM consumables')
+    execute_query('DELETE FROM toners')
+    execute_query('DELETE FROM users')
+
+
+def insert_sample_data(force=False):
+    """Insert sample data if tables are empty or incomplete. Auto-adds missing items."""
     # Check if users exist
     users = get_all_users()
+    if force:
+        # Clear existing data first for force reset
+        try:
+            execute_query('DELETE FROM activities')
+            execute_query('DELETE FROM consumables')
+            execute_query('DELETE FROM toners')
+            execute_query('DELETE FROM users')
+        except:
+            pass
+        users = []  # Reset users list after delete
+    
     if not users or len(users) == 0:
         # Admin users with is_admin=True
         admin_users = [
@@ -543,10 +562,10 @@ def insert_sample_data():
             except Exception as e:
                 pass
     
-    # Check if consumables exist
+    # Check and add missing consumables
     consumables = get_all_consumables()
-    if not consumables or len(consumables) == 0:
-        consumables_data = [
+    existing_names = [c['item_name'] for c in consumables] if consumables else []
+    consumables_data = [
             ('Walkie Talkie Adaptor', 'Adapters', 5, 0, 0, 0, 2),
             ('Bluetooth Scanner', 'Scanners', 6, 0, 0, 0, 3),
             ('DP Cable', 'Cables', 166, 0, 0, 0, 20),
@@ -577,16 +596,17 @@ def insert_sample_data():
             ('HDMI to VGA', 'Adapters', 3, 0, 0, 0, 2),
             ('DP to VGA', 'Adapters', 6, 0, 0, 0, 3)
         ]
-        for item in consumables_data:
+    for item in consumables_data:
+        if item[0] not in existing_names:
             try:
                 add_consumable(item[0], item[1], item[2], item[3], item[4], item[5], item[6])
             except Exception as e:
                 pass
     
-    # Check if toners exist
+    # Check and add missing toners
     toners = get_all_toners()
-    if not toners or len(toners) == 0:
-        toners_data = [
+    existing_toners = [t['toner_model'] for t in toners] if toners else []
+    toners_data = [
             ('LaserJet Pro MFP M521dn', 5, 'CE255XC', 'Black', 3, 0, 4, 0, 2),
             ('LaserJet M608', 6, 'CF237YC', 'Black', 0, 13, 0, 0, 3),
             ('LaserJet flow MFP M830', 2, 'CF325XC', 'Black', 5, 12, 0, 0, 3),
@@ -599,7 +619,8 @@ def insert_sample_data():
             ('LaserJet 700 color MFP M775', 2, 'CE343AC - M', 'Magenta', 6, 5, 4, 0, 2),
             ('LaserJet Enterprise M611dn', 3, 'W1470YC', 'Black', 2, 4, 4, 0, 2)
         ]
-        for item in toners_data:
+    for item in toners_data:
+        if item[2] not in existing_toners:  # item[2] is toner_model
             try:
                 add_toner(item[0], item[1], item[2], item[3], item[4], item[5], item[6], item[7], item[8])
             except Exception as e:
