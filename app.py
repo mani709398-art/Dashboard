@@ -31,6 +31,7 @@ st.markdown("""
     .low-stock-alert { background: #3d2a2a; border-left: 4px solid #e74c3c; padding: 12px 18px; margin: 8px 0; border-radius: 0 8px 8px 0; color: #ffffff; }
     .stButton > button { background: #f39c12; color: white; border: none; padding: 10px 25px; border-radius: 8px; font-weight: 600; }
     .stButton > button:hover { background: #e67e22; }
+    .stDownloadButton > button { background: #e74c3c !important; color: white !important; }
     .stTabs [data-baseweb="tab"] { background: #2d3a4a; border-radius: 8px; padding: 12px 24px; font-weight: 600; color: #ffffff; }
     .stTabs [aria-selected="true"] { background: #0984e3; }
     .styled-table { width: 100%; border-collapse: collapse; background: #2d3a4a; border-radius: 8px; }
@@ -105,7 +106,10 @@ def local_log_activity(user_id, item_type, item_id, item_name, action, qty, befo
 def local_update_password(user_id, pwd):
     for u in st.session_state.local_users:
         if u['id'] == user_id: u['password'] = pwd; break
-    st.session_state.pending_changes.append({'type': 'password', 'user_id': user_id, 'password': pwd})
+    # Sync password to cloud immediately
+    try:
+        db.update_user_password(user_id, pwd)
+    except: pass
 
 # Cloud sync
 def sync_to_cloud():
@@ -188,12 +192,9 @@ def login_section():
                         edit_name = st.text_input("Full Name", value=u['full_name'], key="edit_name")
                         edit_user = st.text_input("Username", value=u['username'], key="edit_user")
                         if st.button("Update", use_container_width=True):
-                            if edit_name and edit_user:
-                                db.update_user_details(u['id'], edit_name, edit_user, u['department'])
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success("✅ Updated!")
-                                st.rerun()
+                            db.update_user_details(u['id'], edit_name, edit_user, u['department'])
+                            st.cache_data.clear(); st.session_state.data_loaded = False
+                            st.success("✅ Updated!"); st.rerun()
                 
                 elif action == "Remove User":
                     st.markdown("**🗑️ Remove User**")
@@ -201,14 +202,9 @@ def login_section():
                     if other_users:
                         sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']})" for u in other_users], key="rem_sel")
                         u = next((x for x in other_users if f"{x['full_name']} (@{x['username']})" == sel), None)
-                        st.warning(f"⚠️ Delete: **{sel}**?")
-                        if st.checkbox("Confirm delete", key="confirm_del"):
-                            if st.button("🗑️ Delete", use_container_width=True, type="primary"):
-                                db.delete_user(u['id'])
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success("✅ Deleted!")
-                                st.rerun()
+                        if st.checkbox("Confirm delete", key="confirm_del") and st.button("🗑️ Delete", type="primary"):
+                            db.delete_user(u['id']); st.cache_data.clear(); st.session_state.data_loaded = False
+                            st.success("✅ Deleted!"); st.rerun()
                 
                 elif action == "Manage Admins":
                     st.markdown("**👑 Manage Admins**")
@@ -218,28 +214,19 @@ def login_section():
                         is_adm = bool(u.get('is_admin', False))
                         st.info(f"Status: {'👑 Admin' if is_adm else '👤 User'}")
                         if is_adm:
-                            if st.button("🔽 Remove Admin", use_container_width=True, type="primary"):
-                                db.update_user_admin_status(u['id'], False)
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success("✅ Admin removed!")
-                                st.rerun()
+                            if st.button("🔽 Remove Admin", type="primary"):
+                                db.update_user_admin_status(u['id'], False); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
                         else:
-                            if st.button("👑 Make Admin", use_container_width=True, type="primary"):
-                                db.update_user_admin_status(u['id'], True)
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success("✅ Now Admin!")
-                                st.rerun()
+                            if st.button("👑 Make Admin", type="primary"):
+                                db.update_user_admin_status(u['id'], True); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
                 
                 elif action == "Set Password":
                     st.markdown("**🔑 Set Password**")
                     sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']})" for u in users], key="pwd_sel")
                     pwd = st.text_input("New Password", type="password", key="apwd")
-                    if st.button("Set Password", use_container_width=True):
-                        if pwd:
-                            u = next((x for x in users if x['full_name'] == sel), None)
-                            if u: local_update_password(u['id'], pwd); st.success("✅ Password set!")
+                    if st.button("Set Password") and pwd:
+                        u = next((x for x in users if f"{x['full_name']} (@{x['username']})" == sel), None)
+                        if u: local_update_password(u['id'], pwd); st.success("✅ Password set!")
                 
                 elif action == "Edit Stock":
                     st.markdown("**📦 Edit Stock**")
@@ -253,12 +240,8 @@ def login_section():
                             loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty")
-                            if st.button("Update Stock", use_container_width=True):
-                                db.set_consumable_stock(i['id'], loc, new_qty)
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success(f"✅ Updated to {new_qty}")
-                                st.rerun()
+                            if st.button("Update Stock"):
+                                db.set_consumable_stock(i['id'], loc, new_qty); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
                     else:
                         tons = get_toners()
                         sel = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in tons], key="stock_ton")
@@ -269,27 +252,15 @@ def login_section():
                             loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty_t")
-                            if st.button("Update Stock", use_container_width=True):
-                                db.set_toner_stock(i['id'], loc, new_qty)
-                                st.cache_data.clear()
-                                st.session_state.data_loaded = False
-                                st.success(f"✅ Updated to {new_qty}")
-                                st.rerun()
+                            if st.button("Update Stock"):
+                                db.set_toner_stock(i['id'], loc, new_qty); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
                 
                 elif action == "Sync":
-                    st.markdown("**🔄 Sync to Cloud**")
                     st.info(f"Pending: {len(st.session_state.pending_changes)} changes")
-                    if st.button("🔄 Sync Now", use_container_width=True, type="primary"):
-                        synced = sync_to_cloud()
-                        st.success(f"✅ {synced} changes synced!")
+                    if st.button("🔄 Sync Now", type="primary"): st.success(f"✅ {sync_to_cloud()} synced!")
                 
                 elif action == "Reload":
-                    st.markdown("**🔄 Reload from Cloud**")
-                    st.info("Refresh all data from database")
-                    if st.button("🔄 Reload Data", use_container_width=True, type="primary"):
-                        st.cache_data.clear()
-                        st.session_state.data_loaded = False
-                        st.rerun()
+                    if st.button("🔄 Reload Data", type="primary"): st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
     else:
         st.sidebar.markdown("### 👤 Login")
         admins, regulars = [u for u in users if u.get('is_admin')], [u for u in users if not u.get('is_admin')]
@@ -326,9 +297,18 @@ def consumables_dashboard():
         if not df.empty:
             df['S.No'] = range(1, len(df) + 1)
             if 'p3_it_cage' not in df.columns: df['p3_it_cage'] = 0
+            
+            # Export to Excel
+            export_df = df[['item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            export_df.columns = ['Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                export_df.to_excel(writer, index=False, sheet_name='Consumables')
+            st.download_button("📥 Export to Excel", output.getvalue(), f"Consumables_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="exp_cons")
+            
             disp = df[['S.No', 'item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
             disp.columns = ['S.No', 'Item', 'Category', 'P1', 'HRV', 'RF', 'P3', 'Total']
-            for c in ['P1', 'HRV', 'RF', 'P3']: disp[c] = disp[c].apply(lambda x: '-' if x == 0 else x)
+            for col in ['P1', 'HRV', 'RF', 'P3']: disp[col] = disp[col].apply(lambda x: '-' if x == 0 else x)
             st.markdown(disp.to_html(index=False, classes='styled-table'), unsafe_allow_html=True)
     
     with tab2:
@@ -388,9 +368,18 @@ def toner_dashboard():
         if not df.empty:
             df['S.No'] = range(1, len(df) + 1)
             if 'p3_it_cage' not in df.columns: df['p3_it_cage'] = 0
+            
+            # Export to Excel
+            exp_df = df[['printer_model', 'toner_model', 'color', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
+            exp_df.columns = ['Printer', 'Toner', 'Color', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                exp_df.to_excel(writer, index=False, sheet_name='Toners')
+            st.download_button("📥 Export to Excel", output.getvalue(), f"Toners_{datetime.now().strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="exp_t")
+            
             disp = df[['S.No', 'printer_model', 'toner_model', 'color', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
             disp.columns = ['S.No', 'Printer', 'Toner', 'Color', 'P1', 'HRV', 'RF', 'P3', 'Total']
-            for c in ['P1', 'HRV', 'RF', 'P3']: disp[c] = disp[c].apply(lambda x: '-' if x == 0 else x)
+            for col in ['P1', 'HRV', 'RF', 'P3']: disp[col] = disp[col].apply(lambda x: '-' if x == 0 else x)
             st.markdown(disp.to_html(index=False, classes='styled-table'), unsafe_allow_html=True)
     
     with tab2:
@@ -449,6 +438,15 @@ def activity_dashboard():
     if acts:
         df = pd.DataFrame(acts)
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+        
+        # Export to Excel
+        exp_df = df[['timestamp', 'user_name', 'item_type', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']].copy()
+        exp_df.columns = ['Time', 'User', 'Type', 'Item', 'Action', 'Qty', 'Before', 'After']
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            exp_df.to_excel(writer, index=False, sheet_name='Activity')
+        st.download_button("📥 Export to Excel", output.getvalue(), f"Activity_{datetime.now().strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="exp_a")
+        
         st.dataframe(df[['timestamp', 'user_name', 'item_type', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']], use_container_width=True, hide_index=True)
     else:
         st.info("No activity history yet")
@@ -459,12 +457,9 @@ def main():
     st.sidebar.markdown("### 📑 Navigation")
     page = st.sidebar.radio("", ["📦 Consumables", "🖨️ Toners", "📋 Activity Log"], label_visibility="collapsed")
     
-    if page == "📦 Consumables":
-        consumables_dashboard()
-    elif page == "🖨️ Toners":
-        toner_dashboard()
-    else:
-        activity_dashboard()
+    if page == "📦 Consumables": consumables_dashboard()
+    elif page == "🖨️ Toners": toner_dashboard()
+    else: activity_dashboard()
     
     st.sidebar.markdown("---")
     st.sidebar.markdown('<div style="text-align: center; color: #888; font-size: 0.8rem;">IT Inventory v2.0</div>', unsafe_allow_html=True)
