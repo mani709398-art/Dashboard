@@ -27,7 +27,8 @@ def get_connection():
     db_url = get_database_url()
     if db_url:
         import psycopg2
-        conn = psycopg2.connect(db_url)
+        # Supabase requires SSL
+        conn = psycopg2.connect(db_url, sslmode='require')
         return conn, True  # True = PostgreSQL
     else:
         conn = sqlite3.connect(DATABASE)
