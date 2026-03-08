@@ -1,55 +1,46 @@
- """Database module for Consumables & Toners Tracking
+"""Database module for Consumables & Toners Tracking
 Supports both SQLite (local) and PostgreSQL (Supabase for production)
 """
 
 import os
 from datetime import datetime
-
-# Try to import Streamlit for secrets, fallback to environment variables
-try:
-    import streamlit as st
-    USE_STREAMLIT = True
-except ImportError:
-    USE_STREAMLIT = False
-
-# Determine if we're using PostgreSQL (production) or SQLite (local)
-def get_database_url():
-    """Get database URL from Streamlit secrets or environment"""
-    if USE_STREAMLIT:
-        try:
-            return st.secrets.get("DATABASE_URL", None)
-        except:
-            pass
-    return os.environ.get("DATABASE_URL", None)
-
-DATABASE_URL = get_database_url()
-USE_POSTGRES = DATABASE_URL is not None
-
-if USE_POSTGRES:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-else:
-    import sqlite3
+import sqlite3
 
 DATABASE = 'tracking_dashboard.db'
 
 
+def get_database_url():
+    """Get database URL from Streamlit secrets or environment"""
+    # Try Streamlit secrets first
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and "DATABASE_URL" in st.secrets:
+            return st.secrets["DATABASE_URL"]
+    except Exception:
+        pass
+    # Fallback to environment variable
+    return os.environ.get("DATABASE_URL", None)
+
+
 def get_connection():
     """Get database connection based on environment"""
-    if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+    db_url = get_database_url()
+    if db_url:
+        import psycopg2
+        conn = psycopg2.connect(db_url)
+        return conn, True  # True = PostgreSQL
     else:
         conn = sqlite3.connect(DATABASE)
         conn.row_factory = sqlite3.Row
-        return conn
+        return conn, False  # False = SQLite
 
 
 def execute_query(query, params=None, fetch=False, fetch_one=False):
     """Execute a query with proper handling for both database types"""
-    conn = get_connection()
+    conn, is_postgres = get_connection()
     
-    if USE_POSTGRES:
+    if is_postgres:
+        from psycopg2.extras import RealDictCursor
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         # Convert SQLite-style ? placeholders to PostgreSQL %s
         query = query.replace('?', '%s')
@@ -64,19 +55,19 @@ def execute_query(query, params=None, fetch=False, fetch_one=False):
         
         if fetch_one:
             result = cursor.fetchone()
-            if USE_POSTGRES:
+            if is_postgres:
                 return dict(result) if result else None
             else:
                 return dict(result) if result else None
         elif fetch:
             results = cursor.fetchall()
-            if USE_POSTGRES:
+            if is_postgres:
                 return [dict(row) for row in results]
             else:
                 return [dict(row) for row in results]
         else:
             conn.commit()
-            return cursor.lastrowid if not USE_POSTGRES else None
+            return cursor.lastrowid if not is_postgres else None
     finally:
         cursor.close()
         conn.close()
@@ -94,7 +85,8 @@ def init_database():
 
 def create_users_table():
     """Create users table"""
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         query = '''CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
@@ -119,7 +111,8 @@ def create_users_table():
 
 def create_consumables_table():
     """Create consumables table"""
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         query = '''CREATE TABLE IF NOT EXISTS consumables (
             id SERIAL PRIMARY KEY,
             item_name TEXT NOT NULL,
@@ -148,7 +141,8 @@ def create_consumables_table():
 
 def create_toners_table():
     """Create toners table"""
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         query = '''CREATE TABLE IF NOT EXISTS toners (
             id SERIAL PRIMARY KEY,
             printer_model TEXT NOT NULL,
@@ -181,7 +175,8 @@ def create_toners_table():
 
 def create_activities_table():
     """Create activities table"""
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         query = '''CREATE TABLE IF NOT EXISTS activities (
             id SERIAL PRIMARY KEY,
             user_id INTEGER,
@@ -216,11 +211,10 @@ def create_activities_table():
 
 def add_missing_columns():
     """Add missing columns to existing tables (migration support)"""
-    conn = get_connection()
+    conn, is_postgres = get_connection()
+    cursor = conn.cursor()
     
-    if USE_POSTGRES:
-        cursor = conn.cursor()
-        # PostgreSQL way to add columns if not exists
+    if is_postgres:
         try:
             cursor.execute("ALTER TABLE consumables ADD COLUMN IF NOT EXISTS p3_it_cage INTEGER DEFAULT 0")
             cursor.execute("ALTER TABLE toners ADD COLUMN IF NOT EXISTS p3_it_cage INTEGER DEFAULT 0")
@@ -234,8 +228,6 @@ def add_missing_columns():
             cursor.close()
             conn.close()
     else:
-        cursor = conn.cursor()
-        # SQLite way - check if columns exist first
         try:
             cursor.execute("PRAGMA table_info(consumables)")
             columns = [col[1] for col in cursor.fetchall()]
@@ -271,18 +263,22 @@ def add_missing_columns():
 
 def add_user(username, full_name, department='IT', password='', is_admin=False):
     """Add a new user"""
-    admin_val = 1 if is_admin else 0
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         admin_val = is_admin
+    else:
+        admin_val = 1 if is_admin else 0
     query = 'INSERT INTO users (username, full_name, department, password, is_admin) VALUES (?, ?, ?, ?, ?)'
     execute_query(query, (username, full_name, department, password, admin_val))
 
 
 def update_user_admin_status(user_id, is_admin):
     """Update user admin status"""
-    admin_val = 1 if is_admin else 0
-    if USE_POSTGRES:
+    db_url = get_database_url()
+    if db_url:
         admin_val = is_admin
+    else:
+        admin_val = 1 if is_admin else 0
     query = 'UPDATE users SET is_admin = ? WHERE id = ?'
     execute_query(query, (admin_val, user_id))
 
@@ -383,6 +379,9 @@ def get_consumable_stats():
                 COUNT(DISTINCT category) as categories 
                FROM consumables'''
     stats = execute_query(query, fetch_one=True)
+    if stats is None:
+        stats = {'total_items': 0, 'total_stock': 0, 'p1_it_cage': 0, 'hrv_backside': 0, 'rf_cage': 0, 'p3_it_cage': 0, 'categories': 0, 'low_stock_count': 0}
+        return stats
     
     low_query = '''SELECT COUNT(*) as low_stock FROM consumables 
                    WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
@@ -443,6 +442,9 @@ def get_toner_stats():
                 COALESCE(SUM(p3_it_cage), 0) as p3_it_cage 
                FROM toners'''
     stats = execute_query(query, fetch_one=True)
+    if stats is None:
+        stats = {'total_items': 0, 'total_stock': 0, 'p1_it_cage': 0, 'hrv_backside': 0, 'rf_cage': 0, 'p3_it_cage': 0, 'low_stock_count': 0}
+        return stats
     
     low_query = '''SELECT COUNT(*) as low_stock FROM toners 
                    WHERE (p1_it_cage + hrv_backside + rf_cage + COALESCE(p3_it_cage, 0)) <= min_stock_level'''
@@ -520,7 +522,7 @@ def insert_sample_data():
             try:
                 add_user(user[0], user[1], user[2], user[3], user[4])
             except Exception as e:
-                pass  # User might already exist
+                pass
     
     # Check if consumables exist
     consumables = get_all_consumables()
