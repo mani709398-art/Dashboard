@@ -160,28 +160,150 @@ def login_section():
         if st.sidebar.button("🚪 Logout"): sync_to_cloud(); st.session_state.logged_in_user = None; st.rerun()
         
         if is_admin:
-            with st.sidebar.expander("🔧 Admin"):
-                action = st.radio("", ["Set Password", "Sync", "Reload"], label_visibility="collapsed")
-                if action == "Set Password":
-                    sel = st.selectbox("User", [u['full_name'] for u in users])
-                    pwd = st.text_input("Password", type="password", key="apwd")
-                    if st.button("Set") and pwd: u = next((x for x in users if x['full_name'] == sel), None); u and local_update_password(u['id'], pwd); st.success("✅")
-                elif action == "Sync" and st.button("🔄 Sync"): st.success(f"✅ {sync_to_cloud()} synced")
-                elif action == "Reload" and st.button("🔄 Reload"): st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
+            with st.sidebar.expander("🔧 Admin Panel"):
+                action = st.radio("", ["Add User", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock", "Sync", "Reload"], label_visibility="collapsed")
+                
+                if action == "Add User":
+                    st.markdown("**➕ Add New User**")
+                    new_user = st.text_input("Username", key="new_user")
+                    new_name = st.text_input("Full Name", key="new_name")
+                    new_admin = st.checkbox("Make Admin", key="new_admin")
+                    new_pwd = st.text_input("Password", type="password", key="new_pwd")
+                    if st.button("Add User", use_container_width=True):
+                        if new_user and new_name:
+                            try:
+                                db.add_user(new_user, new_name, 'IT', new_pwd, new_admin)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success("✅ User added!")
+                                st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
+                        else: st.error("Username and Name required!")
+                
+                elif action == "Edit User":
+                    st.markdown("**✏️ Edit User**")
+                    sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']})" for u in users], key="edit_sel")
+                    u = next((x for x in users if f"{x['full_name']} (@{x['username']})" == sel), None)
+                    if u:
+                        edit_name = st.text_input("Full Name", value=u['full_name'], key="edit_name")
+                        edit_user = st.text_input("Username", value=u['username'], key="edit_user")
+                        if st.button("Update", use_container_width=True):
+                            if edit_name and edit_user:
+                                db.update_user_details(u['id'], edit_name, edit_user, u['department'])
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success("✅ Updated!")
+                                st.rerun()
+                
+                elif action == "Remove User":
+                    st.markdown("**🗑️ Remove User**")
+                    other_users = [u for u in users if u['id'] != st.session_state.logged_in_user]
+                    if other_users:
+                        sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']})" for u in other_users], key="rem_sel")
+                        u = next((x for x in other_users if f"{x['full_name']} (@{x['username']})" == sel), None)
+                        st.warning(f"⚠️ Delete: **{sel}**?")
+                        if st.checkbox("Confirm delete", key="confirm_del"):
+                            if st.button("🗑️ Delete", use_container_width=True, type="primary"):
+                                db.delete_user(u['id'])
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success("✅ Deleted!")
+                                st.rerun()
+                
+                elif action == "Manage Admins":
+                    st.markdown("**👑 Manage Admins**")
+                    sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']}) {'👑' if u.get('is_admin') else ''}" for u in users], key="admin_sel")
+                    u = next((x for x in users if f"{x['full_name']} (@{x['username']}) {'👑' if x.get('is_admin') else ''}" == sel), None)
+                    if u:
+                        is_adm = bool(u.get('is_admin', False))
+                        st.info(f"Status: {'👑 Admin' if is_adm else '👤 User'}")
+                        if is_adm:
+                            if st.button("🔽 Remove Admin", use_container_width=True, type="primary"):
+                                db.update_user_admin_status(u['id'], False)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success("✅ Admin removed!")
+                                st.rerun()
+                        else:
+                            if st.button("👑 Make Admin", use_container_width=True, type="primary"):
+                                db.update_user_admin_status(u['id'], True)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success("✅ Now Admin!")
+                                st.rerun()
+                
+                elif action == "Set Password":
+                    st.markdown("**🔑 Set Password**")
+                    sel = st.selectbox("User", [f"{u['full_name']} (@{u['username']})" for u in users], key="pwd_sel")
+                    pwd = st.text_input("New Password", type="password", key="apwd")
+                    if st.button("Set Password", use_container_width=True):
+                        if pwd:
+                            u = next((x for x in users if x['full_name'] == sel), None)
+                            if u: local_update_password(u['id'], pwd); st.success("✅ Password set!")
+                
+                elif action == "Edit Stock":
+                    st.markdown("**📦 Edit Stock**")
+                    item_type = st.radio("Type", ["Consumable", "Toner"], horizontal=True, key="stock_type")
+                    if item_type == "Consumable":
+                        cons = get_consumables()
+                        sel = st.selectbox("Item", [c['item_name'] for c in cons], key="stock_cons")
+                        loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="stock_loc")
+                        i = next((c for c in cons if c['item_name'] == sel), None)
+                        if i:
+                            loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
+                            curr = i.get(loc_map[loc], 0)
+                            new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty")
+                            if st.button("Update Stock", use_container_width=True):
+                                db.set_consumable_stock(i['id'], loc, new_qty)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success(f"✅ Updated to {new_qty}")
+                                st.rerun()
+                    else:
+                        tons = get_toners()
+                        sel = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in tons], key="stock_ton")
+                        loc = st.selectbox("Location", ["P1 IT Cage", "HRV Backside", "RF Cage", "P3 IT Cage"], key="stock_loc_t")
+                        toner_model = sel.split(" - ")[0]
+                        i = next((t for t in tons if t['toner_model'] == toner_model), None)
+                        if i:
+                            loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
+                            curr = i.get(loc_map[loc], 0)
+                            new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty_t")
+                            if st.button("Update Stock", use_container_width=True):
+                                db.set_toner_stock(i['id'], loc, new_qty)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success(f"✅ Updated to {new_qty}")
+                                st.rerun()
+                
+                elif action == "Sync":
+                    st.markdown("**🔄 Sync to Cloud**")
+                    st.info(f"Pending: {len(st.session_state.pending_changes)} changes")
+                    if st.button("🔄 Sync Now", use_container_width=True, type="primary"):
+                        synced = sync_to_cloud()
+                        st.success(f"✅ {synced} changes synced!")
+                
+                elif action == "Reload":
+                    st.markdown("**🔄 Reload from Cloud**")
+                    st.info("Refresh all data from database")
+                    if st.button("🔄 Reload Data", use_container_width=True, type="primary"):
+                        st.cache_data.clear()
+                        st.session_state.data_loaded = False
+                        st.rerun()
     else:
         st.sidebar.markdown("### 👤 Login")
         admins, regulars = [u for u in users if u.get('is_admin')], [u for u in users if not u.get('is_admin')]
         login_type = st.sidebar.radio("", ["Admin", "User"], horizontal=True, label_visibility="collapsed")
         if login_type == "Admin" and admins:
-            sel = st.sidebar.selectbox("", [u['full_name'] for u in admins], label_visibility="collapsed")
+            sel = st.sidebar.selectbox("", [f"{u['full_name']} (@{u['username']})" for u in admins], label_visibility="collapsed")
             pwd = st.sidebar.text_input("Password", type="password")
             if st.sidebar.button("🔐 Login", type="primary"):
-                u = next((x for x in admins if x['full_name'] == sel), None)
+                u = next((x for x in admins if f"{x['full_name']} (@{x['username']})" == sel), None)
                 if u and u['password'] == pwd: st.session_state.logged_in_user = u['id']; st.rerun()
                 else: st.sidebar.error("❌ Invalid!")
         elif login_type == "User" and regulars:
-            sel = st.sidebar.selectbox("", [u['full_name'] for u in regulars], label_visibility="collapsed")
-            u = next((x for x in regulars if x['full_name'] == sel), None)
+            sel = st.sidebar.selectbox("", [f"{u['full_name']} (@{u['username']})" for u in regulars], label_visibility="collapsed")
+            u = next((x for x in regulars if f"{x['full_name']} (@{x['username']})" == sel), None)
             if u and u.get('password'):
                 pwd = st.sidebar.text_input("Password", type="password")
                 if st.sidebar.button("🔐 Login", type="primary"): 
