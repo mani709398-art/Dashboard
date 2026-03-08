@@ -814,9 +814,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize database
-db.init_database()
-db.insert_sample_data()
+# Initialize database (only once)
+if 'db_initialized' not in st.session_state:
+    db.init_database()
+    db.insert_sample_data()
+    st.session_state.db_initialized = True
 
 # Session state
 if 'logged_in_user' not in st.session_state:
@@ -825,6 +827,45 @@ if 'success_msg' not in st.session_state:
     st.session_state.success_msg = None
 if 'theme' not in st.session_state:
     st.session_state.theme = 'dark'
+if 'data_refresh' not in st.session_state:
+    st.session_state.data_refresh = 0
+
+
+# Cached data functions
+@st.cache_data(ttl=30)
+def get_cached_users(_refresh):
+    """Get users with caching (30 sec TTL)"""
+    return db.get_all_users()
+
+
+@st.cache_data(ttl=30)
+def get_cached_consumables(_refresh):
+    """Get consumables with caching"""
+    return db.get_all_consumables()
+
+
+@st.cache_data(ttl=30)
+def get_cached_toners(_refresh):
+    """Get toners with caching"""
+    return db.get_all_toners()
+
+
+@st.cache_data(ttl=30)
+def get_cached_consumable_stats(_refresh):
+    """Get consumable stats with caching"""
+    return db.get_consumable_stats()
+
+
+@st.cache_data(ttl=30)
+def get_cached_toner_stats(_refresh):
+    """Get toner stats with caching"""
+    return db.get_toner_stats()
+
+
+def refresh_data():
+    """Force refresh cached data"""
+    st.session_state.data_refresh += 1
+    st.cache_data.clear()
 
 # Show success message as toast notification
 if st.session_state.success_msg:

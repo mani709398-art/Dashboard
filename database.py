@@ -1,5 +1,6 @@
 """Database module for Consumables & Toners Tracking
 Supports both SQLite (local) and PostgreSQL (Supabase for production)
+Uses Streamlit caching for better performance
 """
 
 import os
@@ -8,18 +9,27 @@ import sqlite3
 
 DATABASE = 'tracking_dashboard.db'
 
+# Cache database URL to avoid repeated lookups
+_db_url_cache = None
+
 
 def get_database_url():
-    """Get database URL from Streamlit secrets or environment"""
+    """Get database URL from Streamlit secrets or environment (cached)"""
+    global _db_url_cache
+    if _db_url_cache is not None:
+        return _db_url_cache
+    
     # Try Streamlit secrets first
     try:
         import streamlit as st
         if hasattr(st, 'secrets') and "DATABASE_URL" in st.secrets:
-            return st.secrets["DATABASE_URL"]
+            _db_url_cache = st.secrets["DATABASE_URL"]
+            return _db_url_cache
     except Exception:
         pass
     # Fallback to environment variable
-    return os.environ.get("DATABASE_URL", None)
+    _db_url_cache = os.environ.get("DATABASE_URL", None)
+    return _db_url_cache
 
 
 def get_connection():
@@ -27,8 +37,16 @@ def get_connection():
     db_url = get_database_url()
     if db_url:
         import psycopg2
-        # Supabase requires SSL
-        conn = psycopg2.connect(db_url, sslmode='require')
+        # Supabase requires SSL, use keepalives for better performance
+        conn = psycopg2.connect(
+            db_url, 
+            sslmode='require',
+            connect_timeout=10,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
+        )
         return conn, True  # True = PostgreSQL
     else:
         conn = sqlite3.connect(DATABASE)
