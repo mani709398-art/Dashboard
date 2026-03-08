@@ -111,6 +111,18 @@ def local_update_password(user_id, pwd):
         db.update_user_password(user_id, pwd)
     except: pass
 
+def local_set_stock(item_type, item_id, location, new_value):
+    """Set stock to specific value (for admin edit) - local first, then queue sync"""
+    loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
+    col = loc_map.get(location, 'p1_it_cage')
+    items = st.session_state.local_consumables if item_type == 'consumable' else st.session_state.local_toners
+    for item in items:
+        if item['id'] == item_id:
+            item[col] = new_value
+            item['total_stock'] = item['p1_it_cage'] + item['hrv_backside'] + item['rf_cage'] + item.get('p3_it_cage', 0)
+            break
+    st.session_state.pending_changes.append({'type': f'{item_type}_set_stock', 'item_id': item_id, 'location': location, 'value': new_value})
+
 # Cloud sync
 def sync_to_cloud():
     synced = 0
@@ -118,6 +130,8 @@ def sync_to_cloud():
         try:
             if c['type'] == 'consumable_stock': db.update_consumable_stock(c['item_id'], c['location'], c['qty']); synced += 1
             elif c['type'] == 'toner_stock': db.update_toner_stock(c['item_id'], c['location'], c['qty']); synced += 1
+            elif c['type'] == 'consumable_set_stock': db.set_consumable_stock(c['item_id'], c['location'], c['value']); synced += 1
+            elif c['type'] == 'toner_set_stock': db.set_toner_stock(c['item_id'], c['location'], c['value']); synced += 1
             elif c['type'] == 'activity': d = c['data']; db.log_activity(d['user_id'], d['item_type'], d['item_id'], d['item_name'], d['action_type'], d['quantity'], d['notes'], d['before_count'], d['after_count']); synced += 1
             elif c['type'] == 'password': db.update_user_password(c['user_id'], c['password']); synced += 1
             st.session_state.pending_changes.remove(c)
@@ -229,7 +243,7 @@ def login_section():
                         if u: local_update_password(u['id'], pwd); st.success("✅ Password set!")
                 
                 elif action == "Edit Stock":
-                    st.markdown("**📦 Edit Stock**")
+                    st.markdown("**📦 Edit Stock** *(Fast - syncs in background)*")
                     item_type = st.radio("Type", ["Consumable", "Toner"], horizontal=True, key="stock_type")
                     if item_type == "Consumable":
                         cons = get_consumables()
@@ -241,7 +255,9 @@ def login_section():
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty")
                             if st.button("Update Stock"):
-                                db.set_consumable_stock(i['id'], loc, new_qty); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
+                                local_set_stock('consumable', i['id'], loc, new_qty)
+                                st.session_state.success_msg = f"✅ Stock updated: {sel} @ {loc} = {new_qty}"
+                                st.rerun()
                     else:
                         tons = get_toners()
                         sel = st.selectbox("Toner", [f"{t['toner_model']} - {t['printer_model']}" for t in tons], key="stock_ton")
@@ -253,7 +269,9 @@ def login_section():
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty_t")
                             if st.button("Update Stock"):
-                                db.set_toner_stock(i['id'], loc, new_qty); st.cache_data.clear(); st.session_state.data_loaded = False; st.rerun()
+                                local_set_stock('toner', i['id'], loc, new_qty)
+                                st.session_state.success_msg = f"✅ Stock updated: {toner_model} @ {loc} = {new_qty}"
+                                st.rerun()
                 
                 elif action == "Sync":
                     st.info(f"Pending: {len(st.session_state.pending_changes)} changes")
