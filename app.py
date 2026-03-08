@@ -831,41 +831,68 @@ if 'data_refresh' not in st.session_state:
     st.session_state.data_refresh = 0
 
 
-# Cached data functions
-@st.cache_data(ttl=30)
-def get_cached_users(_refresh):
-    """Get users with caching (30 sec TTL)"""
-    return db.get_all_users()
+# Cached data functions - use session state to minimize database calls
+def get_cached_users():
+    """Get users with session caching"""
+    if 'cached_users' not in st.session_state or st.session_state.get('refresh_users', True):
+        st.session_state.cached_users = db.get_all_users()
+        st.session_state.refresh_users = False
+    return st.session_state.cached_users
 
 
-@st.cache_data(ttl=30)
-def get_cached_consumables(_refresh):
-    """Get consumables with caching"""
-    return db.get_all_consumables()
+def get_cached_consumables():
+    """Get consumables with session caching"""
+    if 'cached_consumables' not in st.session_state or st.session_state.get('refresh_consumables', True):
+        st.session_state.cached_consumables = db.get_all_consumables()
+        st.session_state.refresh_consumables = False
+    return st.session_state.cached_consumables
 
 
-@st.cache_data(ttl=30)
-def get_cached_toners(_refresh):
-    """Get toners with caching"""
-    return db.get_all_toners()
+def get_cached_toners():
+    """Get toners with session caching"""
+    if 'cached_toners' not in st.session_state or st.session_state.get('refresh_toners', True):
+        st.session_state.cached_toners = db.get_all_toners()
+        st.session_state.refresh_toners = False
+    return st.session_state.cached_toners
 
 
-@st.cache_data(ttl=30)
-def get_cached_consumable_stats(_refresh):
-    """Get consumable stats with caching"""
-    return db.get_consumable_stats()
+def get_cached_consumable_stats():
+    """Get consumable stats with session caching"""
+    if 'cached_cons_stats' not in st.session_state or st.session_state.get('refresh_consumables', True):
+        st.session_state.cached_cons_stats = db.get_consumable_stats()
+    return st.session_state.cached_cons_stats
 
 
-@st.cache_data(ttl=30)
-def get_cached_toner_stats(_refresh):
-    """Get toner stats with caching"""
-    return db.get_toner_stats()
+def get_cached_toner_stats():
+    """Get toner stats with session caching"""
+    if 'cached_ton_stats' not in st.session_state or st.session_state.get('refresh_toners', True):
+        st.session_state.cached_ton_stats = db.get_toner_stats()
+    return st.session_state.cached_ton_stats
 
 
-def refresh_data():
-    """Force refresh cached data"""
-    st.session_state.data_refresh += 1
-    st.cache_data.clear()
+def get_cached_user_by_id(user_id):
+    """Get user by ID from cache"""
+    users = get_cached_users()
+    return next((u for u in users if u['id'] == user_id), None)
+
+
+def is_cached_user_admin(user_id):
+    """Check if user is admin from cache"""
+    user = get_cached_user_by_id(user_id)
+    if user:
+        return bool(user.get('is_admin', False))
+    return False
+
+
+def refresh_all_data():
+    """Force refresh all cached data"""
+    st.session_state.refresh_users = True
+    st.session_state.refresh_consumables = True
+    st.session_state.refresh_toners = True
+    # Clear cached data
+    for key in ['cached_users', 'cached_consumables', 'cached_toners', 'cached_cons_stats', 'cached_ton_stats']:
+        if key in st.session_state:
+            del st.session_state[key]
 
 # Show success message as toast notification
 if st.session_state.success_msg:
@@ -927,11 +954,11 @@ def create_metric_card(label, value, color_class="metric-value-dark", sub_text="
 
 def login_section():
     """User login section with password - admin status from database"""
-    users = db.get_all_users()
+    users = get_cached_users()
     
     if st.session_state.logged_in_user:
-        current_user = db.get_user_by_id(st.session_state.logged_in_user)
-        is_admin = db.is_user_admin(st.session_state.logged_in_user)
+        current_user = get_cached_user_by_id(st.session_state.logged_in_user)
+        is_admin = is_cached_user_admin(st.session_state.logged_in_user)
         badge_color = "#f39c12" if is_admin else "#00b894"
         role_text = "Admin" if is_admin else "User"
         st.sidebar.markdown(f"""
