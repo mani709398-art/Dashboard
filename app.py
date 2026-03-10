@@ -52,12 +52,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==================== LOGIN PERSISTENCE ====================
+# Check URL params for login persistence
+query_params = st.query_params
+if 'user' in query_params and 'logged_in_user' not in st.session_state:
+    try:
+        st.session_state.logged_in_user = int(query_params['user'])
+    except:
+        pass
+
 # Session state
 if 'logged_in_user' not in st.session_state: st.session_state.logged_in_user = None
 if 'success_msg' not in st.session_state: st.session_state.success_msg = None
 if 'data_loaded' not in st.session_state: st.session_state.data_loaded = False
 if 'pending_changes' not in st.session_state: st.session_state.pending_changes = []
 if 'last_sync' not in st.session_state: st.session_state.last_sync = None
+if 'action_done' not in st.session_state: st.session_state.action_done = False
 
 # Load cloud data once
 @st.cache_data(ttl=600, show_spinner="Loading data...")
@@ -86,33 +96,65 @@ def get_activities(): return st.session_state.local_activities
 def get_user_by_id(uid): return next((u for u in st.session_state.local_users if u['id'] == uid), None)
 def is_user_admin(uid): u = get_user_by_id(uid); return bool(u.get('is_admin', False)) if u else False
 
-# Local operations (instant)
+# ==================== LOCAL OPERATIONS ====================
 def local_update_stock(item_type, item_id, location, qty_change):
+    """Update stock by delta - returns before/after values"""
     loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_map.get(location, 'p1_it_cage')
     items = st.session_state.local_consumables if item_type == 'consumable' else st.session_state.local_toners
+    before, after = 0, 0
     for item in items:
         if item['id'] == item_id:
-            item[col] = item.get(col, 0) + qty_change
+            before = item.get(col, 0)
+            item[col] = before + qty_change
+            after = item[col]
             item['total_stock'] = item['p1_it_cage'] + item['hrv_backside'] + item['rf_cage'] + item.get('p3_it_cage', 0)
             break
     st.session_state.pending_changes.append({'type': f'{item_type}_stock', 'item_id': item_id, 'location': location, 'qty': qty_change})
+    return before, after
 
 def local_log_activity(user_id, item_type, item_id, item_name, action, qty, before, after):
+    """Log activity - only once per action"""
     user = get_user_by_id(user_id)
-    st.session_state.local_activities.insert(0, {'id': 1000+len(st.session_state.local_activities), 'user_id': user_id, 'user_name': user['full_name'] if user else '', 'item_type': item_type, 'item_id': item_id, 'item_name': item_name, 'action_type': action, 'quantity': qty, 'before_count': before, 'after_count': after, 'notes': '', 'timestamp': datetime.now()})
-    st.session_state.pending_changes.append({'type': 'activity', 'data': {'user_id': user_id, 'item_type': item_type, 'item_id': item_id, 'item_name': item_name, 'action_type': action, 'quantity': qty, 'before_count': before, 'after_count': after, 'notes': ''}})
+    activity = {
+        'id': 1000 + len(st.session_state.local_activities),
+        'user_id': user_id,
+        'user_name': user['full_name'] if user else '',
+        'item_type': item_type,
+        'item_id': item_id,
+        'item_name': item_name,
+        'action_type': action,
+        'quantity': qty,
+        'before_count': before,
+        'after_count': after,
+        'notes': '',
+        'timestamp': datetime.now()
+    }
+    st.session_state.local_activities.insert(0, activity)
+    st.session_state.pending_changes.append({
+        'type': 'activity',
+        'data': {
+            'user_id': user_id,
+            'item_type': item_type,
+            'item_id': item_id,
+            'item_name': item_name,
+            'action_type': action,
+            'quantity': qty,
+            'before_count': before,
+            'after_count': after,
+            'notes': ''
+        }
+    })
 
 def local_update_password(user_id, pwd):
     for u in st.session_state.local_users:
         if u['id'] == user_id: u['password'] = pwd; break
-    # Sync password to cloud immediately
     try:
         db.update_user_password(user_id, pwd)
     except: pass
 
 def local_set_stock(item_type, item_id, location, new_value):
-    """Set stock to specific value (for admin edit) - local first, then queue sync"""
+    """Set stock to specific value"""
     loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
     col = loc_map.get(location, 'p1_it_cage')
     items = st.session_state.local_consumables if item_type == 'consumable' else st.session_state.local_toners
@@ -123,7 +165,7 @@ def local_set_stock(item_type, item_id, location, new_value):
             break
     st.session_state.pending_changes.append({'type': f'{item_type}_set_stock', 'item_id': item_id, 'location': location, 'value': new_value})
 
-# Cloud sync
+# ==================== CLOUD SYNC ====================
 def sync_to_cloud():
     synced = 0
     for c in st.session_state.pending_changes[:]:
@@ -132,7 +174,10 @@ def sync_to_cloud():
             elif c['type'] == 'toner_stock': db.update_toner_stock(c['item_id'], c['location'], c['qty']); synced += 1
             elif c['type'] == 'consumable_set_stock': db.set_consumable_stock(c['item_id'], c['location'], c['value']); synced += 1
             elif c['type'] == 'toner_set_stock': db.set_toner_stock(c['item_id'], c['location'], c['value']); synced += 1
-            elif c['type'] == 'activity': d = c['data']; db.log_activity(d['user_id'], d['item_type'], d['item_id'], d['item_name'], d['action_type'], d['quantity'], d['notes'], d['before_count'], d['after_count']); synced += 1
+            elif c['type'] == 'activity': 
+                d = c['data']
+                db.log_activity(d['user_id'], d['item_type'], d['item_id'], d['item_name'], d['action_type'], d['quantity'], d['notes'], d['before_count'], d['after_count'])
+                synced += 1
             elif c['type'] == 'password': db.update_user_password(c['user_id'], c['password']); synced += 1
             st.session_state.pending_changes.remove(c)
         except: pass
@@ -143,7 +188,7 @@ def sync_to_cloud():
 if st.session_state.last_sync and (datetime.now() - st.session_state.last_sync).total_seconds() > 60 and st.session_state.pending_changes:
     sync_to_cloud()
 
-# Stats
+# ==================== STATS ====================
 def get_consumable_stats():
     c = get_consumables()
     return {'total_items': len(c), 'total_stock': sum(x.get('total_stock', 0) for x in c), 'p1_it_cage': sum(x.get('p1_it_cage', 0) for x in c), 'hrv_backside': sum(x.get('hrv_backside', 0) for x in c), 'rf_cage': sum(x.get('rf_cage', 0) for x in c), 'p3_it_cage': sum(x.get('p3_it_cage', 0) for x in c), 'categories': len(set(x.get('category', '') for x in c)), 'low_stock_count': sum(1 for x in c if x.get('total_stock', 0) <= x.get('min_stock_level', 5))}
@@ -158,11 +203,17 @@ if st.session_state.success_msg: st.toast(st.session_state.success_msg, icon="�
 def create_metric_card(label, value, color="metric-value-dark"):
     return f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value {color}">{value}</div></div>'
 
-# Login
+# ==================== LOGIN SECTION ====================
 def login_section():
     users = get_users()
     if st.session_state.logged_in_user:
         user = get_user_by_id(st.session_state.logged_in_user)
+        if not user:
+            st.session_state.logged_in_user = None
+            st.query_params.clear()
+            st.rerun()
+            return
+            
         is_admin = is_user_admin(st.session_state.logged_in_user)
         color = "#f39c12" if is_admin else "#00b894"
         st.sidebar.markdown(f'<div style="background: {color}; border-radius: 10px; padding: 12px; color: white; margin-bottom: 10px;"><div style="font-weight: 700;">👤 {user["full_name"]}</div><div style="font-size: 0.85rem;">@{user["username"]} | {"Admin" if is_admin else "User"}</div></div>', unsafe_allow_html=True)
@@ -175,11 +226,15 @@ def login_section():
             pwd1, pwd2 = st.text_input("New Password", type="password", key="p1"), st.text_input("Confirm", type="password", key="p2")
             if st.button("Update", key="upd_pwd") and pwd1 == pwd2 and pwd1: local_update_password(st.session_state.logged_in_user, pwd1); st.success("✅ Updated!")
         
-        if st.sidebar.button("🚪 Logout"): sync_to_cloud(); st.session_state.logged_in_user = None; st.rerun()
+        if st.sidebar.button("🚪 Logout"):
+            sync_to_cloud()
+            st.session_state.logged_in_user = None
+            st.query_params.clear()
+            st.rerun()
         
         if is_admin:
             with st.sidebar.expander("🔧 Admin Panel"):
-                action = st.radio("", ["Add User", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock", "Sync", "Reload"], label_visibility="collapsed")
+                action = st.radio("", ["Add User", "Add Consumable", "Add Toner", "Edit User", "Remove User", "Manage Admins", "Set Password", "Edit Stock", "Sync", "Reload"], label_visibility="collapsed")
                 
                 if action == "Add User":
                     st.markdown("**➕ Add New User**")
@@ -197,6 +252,61 @@ def login_section():
                                 st.rerun()
                             except Exception as e: st.error(f"Error: {e}")
                         else: st.error("Username and Name required!")
+                
+                elif action == "Add Consumable":
+                    st.markdown("**📦 Add New Consumable**")
+                    cons = get_consumables()
+                    categories = list(set(c.get('category', 'Other') for c in cons))
+                    
+                    new_item = st.text_input("Item Name", key="new_cons_name")
+                    cat_option = st.radio("Category", ["Existing", "New"], horizontal=True, key="cat_opt")
+                    if cat_option == "Existing":
+                        new_cat = st.selectbox("Select Category", categories, key="sel_cat")
+                    else:
+                        new_cat = st.text_input("New Category Name", key="new_cat")
+                    new_min = st.number_input("Min Stock Level", min_value=1, value=5, key="new_min")
+                    
+                    col1, col2 = st.columns(2)
+                    p1_qty = col1.number_input("P1 IT Cage", min_value=0, value=0, key="p1_qty")
+                    hrv_qty = col2.number_input("HRV Backside", min_value=0, value=0, key="hrv_qty")
+                    rf_qty = col1.number_input("RF Cage", min_value=0, value=0, key="rf_qty")
+                    p3_qty = col2.number_input("P3 IT Cage", min_value=0, value=0, key="p3_qty")
+                    
+                    if st.button("➕ Add Consumable", use_container_width=True, type="primary"):
+                        if new_item and new_cat:
+                            try:
+                                db.add_consumable(new_item, new_cat, p1_qty, hrv_qty, rf_qty, p3_qty, new_min)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success(f"✅ Added: {new_item}")
+                                st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
+                        else: st.error("Item Name and Category required!")
+                
+                elif action == "Add Toner":
+                    st.markdown("**🖨️ Add New Toner**")
+                    new_printer = st.text_input("Printer Model", key="new_printer")
+                    new_count = st.number_input("Printer Count", min_value=1, value=1, key="new_printer_cnt")
+                    new_toner = st.text_input("Toner Model", key="new_toner")
+                    new_color = st.selectbox("Color", ["Black", "Cyan", "Yellow", "Magenta"], key="new_color")
+                    new_min = st.number_input("Min Stock Level", min_value=1, value=2, key="new_min_t")
+                    
+                    col1, col2 = st.columns(2)
+                    p1_qty = col1.number_input("P1 IT Cage", min_value=0, value=0, key="p1_qty_t")
+                    hrv_qty = col2.number_input("HRV Backside", min_value=0, value=0, key="hrv_qty_t")
+                    rf_qty = col1.number_input("RF Cage", min_value=0, value=0, key="rf_qty_t")
+                    p3_qty = col2.number_input("P3 IT Cage", min_value=0, value=0, key="p3_qty_t")
+                    
+                    if st.button("➕ Add Toner", use_container_width=True, type="primary"):
+                        if new_printer and new_toner:
+                            try:
+                                db.add_toner(new_printer, new_count, new_toner, new_color, p1_qty, hrv_qty, rf_qty, p3_qty, new_min)
+                                st.cache_data.clear()
+                                st.session_state.data_loaded = False
+                                st.success(f"✅ Added: {new_toner}")
+                                st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
+                        else: st.error("Printer and Toner Model required!")
                 
                 elif action == "Edit User":
                     st.markdown("**✏️ Edit User**")
@@ -243,7 +353,7 @@ def login_section():
                         if u: local_update_password(u['id'], pwd); st.success("✅ Password set!")
                 
                 elif action == "Edit Stock":
-                    st.markdown("**📦 Edit Stock** *(Fast - syncs in background)*")
+                    st.markdown("**📦 Edit Stock**")
                     item_type = st.radio("Type", ["Consumable", "Toner"], horizontal=True, key="stock_type")
                     if item_type == "Consumable":
                         cons = get_consumables()
@@ -256,7 +366,7 @@ def login_section():
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty")
                             if st.button("Update Stock"):
                                 local_set_stock('consumable', i['id'], loc, new_qty)
-                                st.session_state.success_msg = f"✅ Stock updated: {sel} @ {loc} = {new_qty}"
+                                st.session_state.success_msg = f"✅ Updated: {sel} @ {loc} = {new_qty}"
                                 st.rerun()
                     else:
                         tons = get_toners()
@@ -270,7 +380,7 @@ def login_section():
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty_t")
                             if st.button("Update Stock"):
                                 local_set_stock('toner', i['id'], loc, new_qty)
-                                st.session_state.success_msg = f"✅ Stock updated: {toner_model} @ {loc} = {new_qty}"
+                                st.session_state.success_msg = f"✅ Updated: {toner_model} @ {loc} = {new_qty}"
                                 st.rerun()
                 
                 elif action == "Sync":
@@ -288,7 +398,10 @@ def login_section():
             pwd = st.sidebar.text_input("Password", type="password")
             if st.sidebar.button("🔐 Login", type="primary"):
                 u = next((x for x in admins if f"{x['full_name']} (@{x['username']})" == sel), None)
-                if u and u['password'] == pwd: st.session_state.logged_in_user = u['id']; st.rerun()
+                if u and u['password'] == pwd:
+                    st.session_state.logged_in_user = u['id']
+                    st.query_params['user'] = str(u['id'])
+                    st.rerun()
                 else: st.sidebar.error("❌ Invalid!")
         elif login_type == "User" and regulars:
             sel = st.sidebar.selectbox("", [f"{u['full_name']} (@{u['username']})" for u in regulars], label_visibility="collapsed")
@@ -296,10 +409,17 @@ def login_section():
             if u and u.get('password'):
                 pwd = st.sidebar.text_input("Password", type="password")
                 if st.sidebar.button("🔐 Login", type="primary"): 
-                    if u['password'] == pwd: st.session_state.logged_in_user = u['id']; st.rerun()
+                    if u['password'] == pwd:
+                        st.session_state.logged_in_user = u['id']
+                        st.query_params['user'] = str(u['id'])
+                        st.rerun()
                     else: st.sidebar.error("❌ Invalid!")
-            elif st.sidebar.button("🔐 Login", type="primary"): st.session_state.logged_in_user = u['id']; st.rerun()
+            elif st.sidebar.button("🔐 Login", type="primary"):
+                st.session_state.logged_in_user = u['id']
+                st.query_params['user'] = str(u['id'])
+                st.rerun()
 
+# ==================== CONSUMABLES DASHBOARD ====================
 def consumables_dashboard():
     st.markdown('<div class="main-header">🏭 Consumables Inventory</div>', unsafe_allow_html=True)
     stats, consumables = get_consumable_stats(), get_consumables()
@@ -316,13 +436,12 @@ def consumables_dashboard():
             df['S.No'] = range(1, len(df) + 1)
             if 'p3_it_cage' not in df.columns: df['p3_it_cage'] = 0
             
-            # Export to Excel
             export_df = df[['item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
             export_df.columns = ['Item Name', 'Category', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 export_df.to_excel(writer, index=False, sheet_name='Consumables')
-            st.download_button("📥 Export to Excel", output.getvalue(), f"Consumables_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="exp_cons")
+            st.download_button("📥 Export to Excel", output.getvalue(), f"Consumables_{datetime.now().strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="exp_cons")
             
             disp = df[['S.No', 'item_name', 'category', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
             disp.columns = ['S.No', 'Item', 'Category', 'P1', 'HRV', 'RF', 'P3', 'Total']
@@ -342,10 +461,10 @@ def consumables_dashboard():
                     i = next((c for c in consumables if c['item_name'] == item), None)
                     if i:
                         loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-                        before = i.get(loc_map[loc], 0)
-                        if before >= qty:
-                            local_update_stock('consumable', i['id'], loc, -qty)
-                            local_log_activity(st.session_state.logged_in_user, "Consumable", i['id'], f"{i['item_name']} ({loc})", "Pick", qty, before, before-qty)
+                        current = i.get(loc_map[loc], 0)
+                        if current >= qty:
+                            before, after = local_update_stock('consumable', i['id'], loc, -qty)
+                            local_log_activity(st.session_state.logged_in_user, "Consumable", i['id'], f"{i['item_name']} ({loc})", "Pick", qty, before, after)
                             st.session_state.success_msg = f"✅ Picked {qty} x {item}"
                             st.rerun()
                         else: st.error("❌ Insufficient stock!")
@@ -357,10 +476,8 @@ def consumables_dashboard():
                 if st.button("📥 Stow", key="sc_btn"):
                     i = next((c for c in consumables if c['item_name'] == item), None)
                     if i:
-                        loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-                        before = i.get(loc_map[loc], 0)
-                        local_update_stock('consumable', i['id'], loc, qty)
-                        local_log_activity(st.session_state.logged_in_user, "Consumable", i['id'], f"{i['item_name']} ({loc})", "Stow", qty, before, before+qty)
+                        before, after = local_update_stock('consumable', i['id'], loc, qty)
+                        local_log_activity(st.session_state.logged_in_user, "Consumable", i['id'], f"{i['item_name']} ({loc})", "Stow", qty, before, after)
                         st.session_state.success_msg = f"✅ Stowed {qty} x {item}"
                         st.rerun()
     
@@ -372,6 +489,7 @@ def consumables_dashboard():
             st.dataframe(df[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']], use_container_width=True, hide_index=True)
         else: st.info("No history yet")
 
+# ==================== TONER DASHBOARD ====================
 def toner_dashboard():
     st.markdown('<div class="main-header">🖨️ Toner Inventory</div>', unsafe_allow_html=True)
     stats, toners = get_toner_stats(), get_toners()
@@ -387,9 +505,8 @@ def toner_dashboard():
             df['S.No'] = range(1, len(df) + 1)
             if 'p3_it_cage' not in df.columns: df['p3_it_cage'] = 0
             
-            # Export to Excel
             exp_df = df[['printer_model', 'toner_model', 'color', 'p1_it_cage', 'hrv_backside', 'rf_cage', 'p3_it_cage', 'total_stock']].copy()
-            exp_df.columns = ['Printer', 'Toner', 'Color', 'P1 IT Cage', 'HRV Backside', 'RF Cage', 'P3 IT Cage', 'Total']
+            exp_df.columns = ['Printer', 'Toner', 'Color', 'P1', 'HRV', 'RF', 'P3', 'Total']
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 exp_df.to_excel(writer, index=False, sheet_name='Toners')
@@ -414,10 +531,10 @@ def toner_dashboard():
                     i = next((t for t in toners if t['toner_model'] == toner_model), None)
                     if i:
                         loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-                        before = i.get(loc_map[loc], 0)
-                        if before >= qty:
-                            local_update_stock('toner', i['id'], loc, -qty)
-                            local_log_activity(st.session_state.logged_in_user, "Toner", i['id'], f"{i['toner_model']} ({loc})", "Pick", qty, before, before-qty)
+                        current = i.get(loc_map[loc], 0)
+                        if current >= qty:
+                            before, after = local_update_stock('toner', i['id'], loc, -qty)
+                            local_log_activity(st.session_state.logged_in_user, "Toner", i['id'], f"{i['toner_model']} ({loc})", "Pick", qty, before, after)
                             st.session_state.success_msg = f"✅ Picked {qty} x {toner_model}"
                             st.rerun()
                         else: st.error("❌ Insufficient stock!")
@@ -430,10 +547,8 @@ def toner_dashboard():
                     toner_model = item.split(" - ")[0]
                     i = next((t for t in toners if t['toner_model'] == toner_model), None)
                     if i:
-                        loc_map = {'P1 IT Cage': 'p1_it_cage', 'HRV Backside': 'hrv_backside', 'RF Cage': 'rf_cage', 'P3 IT Cage': 'p3_it_cage'}
-                        before = i.get(loc_map[loc], 0)
-                        local_update_stock('toner', i['id'], loc, qty)
-                        local_log_activity(st.session_state.logged_in_user, "Toner", i['id'], f"{i['toner_model']} ({loc})", "Stow", qty, before, before+qty)
+                        before, after = local_update_stock('toner', i['id'], loc, qty)
+                        local_log_activity(st.session_state.logged_in_user, "Toner", i['id'], f"{i['toner_model']} ({loc})", "Stow", qty, before, after)
                         st.session_state.success_msg = f"✅ Stowed {qty} x {toner_model}"
                         st.rerun()
     
@@ -445,6 +560,7 @@ def toner_dashboard():
             st.dataframe(df[['timestamp', 'user_name', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']], use_container_width=True, hide_index=True)
         else: st.info("No history yet")
 
+# ==================== ACTIVITY DASHBOARD ====================
 def activity_dashboard():
     st.markdown('<div class="main-header">📋 Activity Log</div>', unsafe_allow_html=True)
     acts = get_activities()
@@ -457,7 +573,6 @@ def activity_dashboard():
         df = pd.DataFrame(acts)
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
         
-        # Export to Excel
         exp_df = df[['timestamp', 'user_name', 'item_type', 'item_name', 'action_type', 'quantity', 'before_count', 'after_count']].copy()
         exp_df.columns = ['Time', 'User', 'Type', 'Item', 'Action', 'Qty', 'Before', 'After']
         output = BytesIO()
@@ -469,6 +584,7 @@ def activity_dashboard():
     else:
         st.info("No activity history yet")
 
+# ==================== MAIN ====================
 def main():
     login_section()
     st.sidebar.markdown("---")
@@ -480,7 +596,7 @@ def main():
     else: activity_dashboard()
     
     st.sidebar.markdown("---")
-    st.sidebar.markdown('<div style="text-align: center; color: #888; font-size: 0.8rem;">IT Inventory v2.0</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div style="text-align: center; color: #888; font-size: 0.8rem;">IT Inventory v2.1</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
