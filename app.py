@@ -365,7 +365,17 @@ def login_section():
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty")
                             if st.button("Update Stock"):
+                                # Update local state
                                 local_set_stock('consumable', i['id'], loc, new_qty)
+                                # Immediately sync to cloud so other users see the change
+                                try:
+                                    db.set_consumable_stock(i['id'], loc, new_qty)
+                                    # Remove from pending since we synced immediately
+                                    st.session_state.pending_changes = [c for c in st.session_state.pending_changes 
+                                        if not (c.get('type') == 'consumable_set_stock' and c.get('item_id') == i['id'] and c.get('location') == loc)]
+                                    st.cache_data.clear()  # Clear cache so others get fresh data
+                                except Exception as e:
+                                    st.warning(f"Local updated, cloud sync pending: {e}")
                                 st.session_state.success_msg = f"✅ Updated: {sel} @ {loc} = {new_qty}"
                                 st.rerun()
                     else:
@@ -379,7 +389,17 @@ def login_section():
                             curr = i.get(loc_map[loc], 0)
                             new_qty = st.number_input(f"New Qty (Current: {curr})", min_value=0, value=curr, key="stock_qty_t")
                             if st.button("Update Stock"):
+                                # Update local state
                                 local_set_stock('toner', i['id'], loc, new_qty)
+                                # Immediately sync to cloud so other users see the change
+                                try:
+                                    db.set_toner_stock(i['id'], loc, new_qty)
+                                    # Remove from pending since we synced immediately
+                                    st.session_state.pending_changes = [c for c in st.session_state.pending_changes 
+                                        if not (c.get('type') == 'toner_set_stock' and c.get('item_id') == i['id'] and c.get('location') == loc)]
+                                    st.cache_data.clear()  # Clear cache so others get fresh data
+                                except Exception as e:
+                                    st.warning(f"Local updated, cloud sync pending: {e}")
                                 st.session_state.success_msg = f"✅ Updated: {toner_model} @ {loc} = {new_qty}"
                                 st.rerun()
                 
